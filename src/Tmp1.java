@@ -108,7 +108,7 @@ public class Tmp1 extends FuseStubFS {
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("mkdir:" + path);
             String resp = ClientHandler.readLine(i);
-            if (!resp.isEmpty()) {
+            if (isSuccess(resp)) {
                 map.put(path, resp);
             } else {
                 s.close();
@@ -132,7 +132,7 @@ public class Tmp1 extends FuseStubFS {
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
             String resp = ClientHandler.readLine(i);
-            if (!resp.equals("failed")) {
+            if (isSuccess(resp)) {
                 map.remove(path);
             } else {
                 s.close();
@@ -155,6 +155,21 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int create(String path, long mode, FuseFileInfo fi) {
         System.out.println("Create file: " + path);
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("create:" + path);
+            String resp = ClientHandler.readLine(i);
+            if (isSuccess(resp)) {
+                map.put(path, resp);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
@@ -295,6 +310,10 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int readlink(String path, Pointer buf, @size_t long size) {
         return 0;
+    }
+
+    public boolean isSuccess(String resp) {
+        return !resp.equals("F");
     }
 
     // =========================================================================

@@ -39,19 +39,27 @@ public class ClientHandler implements Runnable {
                 if (target.mkdir()) {
                     writeLine(out, (target.isDirectory() ? 2 : 1) + ":" + target.length());
                 } else {
-                    writeLine(out, "");
+                    writeLine(out, "F");
                 }
             } else if (cmd.startsWith(CommandConsts.Prefixes.RMDIR_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.RMDIR_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 if (target.listFiles().length == 0) {
                     if (target.delete()) {
-                        writeLine(out, "deleted");
+                        writeLine(out, "S");
                     } else {
-                        writeLine(out, "failed");
+                        writeLine(out, "F");
                     }
                 } else {
-                    writeLine(out, "failed");
+                    writeLine(out, "F");
+                }
+            } else if (cmd.startsWith(CommandConsts.Prefixes.CREATE_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.CREATE_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                if (target.createNewFile()) {
+                    writeLine(out, "1:" + target.length());
+                } else {
+                    writeLine(out, "F");
                 }
             }
         } catch (Exception e) {
