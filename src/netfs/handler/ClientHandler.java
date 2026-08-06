@@ -57,7 +57,7 @@ public class ClientHandler implements Runnable {
                 path = cmd.substring(CommandConsts.Prefixes.CREATE_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 if (target.createNewFile()) {
-                    writeLine(out, "1:" + target.length());
+                    writeLine(out, "S");
                 } else {
                     writeLine(out, "F");
                 }

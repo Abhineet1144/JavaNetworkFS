@@ -161,7 +161,7 @@ public class Tmp1 extends FuseStubFS {
             new PrintWriter(s.getOutputStream(), true).println("create:" + path);
             String resp = ClientHandler.readLine(i);
             if (isSuccess(resp)) {
-                map.put(path, resp);
+                map.put(path, "1:0");
             } else {
                 s.close();
                 return -1;
