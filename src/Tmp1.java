@@ -199,6 +199,21 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int unlink(String path) {
         System.out.println("Delete file: " + path);
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
+            String resp = ClientHandler.readLine(i);
+            if (isSuccess(resp)) {
+                map.remove(path);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
