@@ -1,0 +1,1 @@
+sudo java -cp 'out/production/JavaNetworkFS:lib/*' Tmp1

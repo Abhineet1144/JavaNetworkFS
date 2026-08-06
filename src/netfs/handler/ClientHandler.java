@@ -13,13 +13,11 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
     }
 
-
     @Override
     public void run() {
         try (
-            BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
-            BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());
-        ) {
+                BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
+                BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());) {
             String path;
             File target;
             String cmd = readLine(in);
@@ -32,7 +30,28 @@ public class ClientHandler implements Runnable {
                 for (File file : target.listFiles()) {
                     System.out.println(Arrays.toString(target.listFiles()));
                     writeLine(out, file.getName());
-                    writeLine(out, (file.isDirectory() ?  2 : 1) + ":" + file.length());
+                    // 2 for directory, 1 for files
+                    writeLine(out, (file.isDirectory() ? 2 : 1) + ":" + file.length());
+                }
+            } else if (cmd.startsWith(CommandConsts.Prefixes.MKDIR_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.MKDIR_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                if (target.mkdir()) {
+                    writeLine(out, (target.isDirectory() ? 2 : 1) + ":" + target.length());
+                } else {
+                    writeLine(out, "");
+                }
+            } else if (cmd.startsWith(CommandConsts.Prefixes.RMDIR_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.RMDIR_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                if (target.listFiles().length == 0) {
+                    if (target.delete()) {
+                        writeLine(out, "deleted");
+                    } else {
+                        writeLine(out, "failed");
+                    }
+                } else {
+                    writeLine(out, "failed");
                 }
             }
         } catch (Exception e) {

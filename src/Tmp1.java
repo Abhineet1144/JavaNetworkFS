@@ -78,7 +78,7 @@ public class Tmp1 extends FuseStubFS {
         filler.apply(buf, "..", null, 0); // Parent directory
         System.out.println("Getting ls for path: " + path);
         try {
-            var s = new Socket("6.tcp.ngrok.io", 29162);
+            var s = new Socket("localhost", 10002);
             new PrintWriter(s.getOutputStream(), true).println("ls:" + path);
             var i = s.getInputStream();
             String li = "";
@@ -87,6 +87,8 @@ public class Tmp1 extends FuseStubFS {
                 String li2 = ClientHandler.readLine(i);
                 map.put(path + (path.endsWith("/") ? "" : "/") + li, li2);
             }
+            System.out.println(map);
+            s.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -100,7 +102,22 @@ public class Tmp1 extends FuseStubFS {
      */
     @Override
     public int mkdir(String path, long mode) {
-        System.out.println("Create folder: " + path);
+        System.out.println("Creating folder: " + path);
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("mkdir:" + path);
+            String resp = ClientHandler.readLine(i);
+            if (!resp.isEmpty()) {
+                map.put(path, resp);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
@@ -110,6 +127,21 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int rmdir(String path) {
         System.out.println("Remove folder: " + path);
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
+            String resp = ClientHandler.readLine(i);
+            if (!resp.equals("failed")) {
+                map.remove(path);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
@@ -272,9 +304,7 @@ public class Tmp1 extends FuseStubFS {
     public static void main(String[] args) {
         Tmp1 fs = new Tmp1();
 
-        String mountPoint = System.getProperty("os.name").toLowerCase().contains("win")
-                ? "Z:\\"
-                : "/tmp/netfs1";
+        String mountPoint = "/tmp/netfs1";
 
         System.out.println("Mounting drive at: " + mountPoint);
 
