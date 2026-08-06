@@ -65,6 +65,18 @@ public class ClientHandler implements Runnable {
                 } else {
                     writeLine(out, "F");
                 }
+            } else if (cmd.startsWith(CommandConsts.Prefixes.RENAME_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.RENAME_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                String newPath = readLine(in);
+                File renamefile = new File(FileSystemServer.getConfig().getSharedFolder(), newPath);
+                FileSystemServer.getOperationStateHandler()
+                        .addMetaGetOperationState(id, "rename: " + target.getAbsolutePath() + "->" + renamefile.getAbsolutePath());
+                if (target.renameTo(renamefile)) {
+                    writeLine(out, (renamefile.isDirectory() ? 2 : 1) + ":" + renamefile.length());
+                } else {
+                    writeLine(out, "F");
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -84,7 +96,6 @@ public class ClientHandler implements Runnable {
         }
         return file.delete();
     }
-
 
     public static String readLine(InputStream input) throws IOException {
         StringBuilder line = new StringBuilder();

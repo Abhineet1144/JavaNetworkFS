@@ -6,5 +6,6 @@ public class CommandConsts {
         public static final String MKDIR_CMD = "mkdir:";
         public static final String RMDIR_CMD = "rmdir:";
         public static final String CREATE_CMD = "create:";
+        public static final String RENAME_CMD = "rename:";
     }
 }

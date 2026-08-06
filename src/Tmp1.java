@@ -223,6 +223,24 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int rename(String oldPath, String newPath) {
         System.out.println("Rename " + oldPath + " -> " + newPath);
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            PrintWriter printWriter = new PrintWriter(s.getOutputStream(), true);
+            printWriter.println("rename:" + oldPath);
+            printWriter.println(newPath);
+            String resp = ClientHandler.readLine(i);
+            if (isSuccess(resp)) {
+                map.remove(oldPath);
+                map.put(newPath, resp);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
