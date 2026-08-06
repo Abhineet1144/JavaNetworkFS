@@ -1,5 +1,6 @@
 package netfs.diskio;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
@@ -258,15 +259,13 @@ public class KernelFSHandler extends FuseStubFS {
             new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + (int) size);
             int resp = Integer.parseInt(JNFSInputStream.readLine(i));
             byte[] data = new byte[resp];
-            i.read(data, 0, resp);
-            if (offset < data.length) {
-                buf.put(0, data, 0, resp);
-                return resp;
-            }
+            new DataInputStream(i).readFully(data);
+            System.out.println("read: " + data.length + " req: " + size + " readHeader: " + resp);
+            buf.put(0, data, 0, resp);
+            return resp;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return 0; // EOF (End of File)
     }
 
     /**
