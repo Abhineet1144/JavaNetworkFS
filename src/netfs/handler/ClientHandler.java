@@ -16,10 +16,8 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        try (
-                BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
-                BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());
-        ) {
+        try (BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
+                BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());) {
             long id = reqId.getAndIncrement();
             String path;
             File target;
@@ -52,12 +50,8 @@ public class ClientHandler implements Runnable {
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 FileSystemServer.getOperationStateHandler()
                         .addMetaGetOperationState(id, "rm dir: " + target.getAbsolutePath());
-                if (target.listFiles().length == 0) {
-                    if (target.delete()) {
-                        writeLine(out, "S");
-                    } else {
-                        writeLine(out, "F");
-                    }
+                if (deleteRecursive(target)) {
+                    writeLine(out, "S");
                 } else {
                     writeLine(out, "F");
                 }
@@ -78,6 +72,19 @@ public class ClientHandler implements Runnable {
             FileSystemServer.markSocketClose();
         }
     }
+
+    public static boolean deleteRecursive(File file) {
+        if (file.isDirectory()) {
+            File[] contents = file.listFiles();
+            if (contents != null) {
+                for (File f : contents) {
+                    deleteRecursive(f);
+                }
+            }
+        }
+        return file.delete();
+    }
+
 
     public static String readLine(InputStream input) throws IOException {
         StringBuilder line = new StringBuilder();
