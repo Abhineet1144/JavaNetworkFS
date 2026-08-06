@@ -2,6 +2,7 @@ package netfs.net;
 
 import netfs.config.ServerConfig;
 import netfs.handler.ClientHandler;
+import netfs.handler.ServerOperationStateHandler;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -9,6 +10,7 @@ import java.net.Socket;
 import java.util.concurrent.ThreadFactory;
 
 public class FileSystemServer {
+    private static ServerOperationStateHandler operationStateHandler;
     private static ServerConfig config;
     private static boolean running = false;
     private static boolean shouldStop;
@@ -23,6 +25,7 @@ public class FileSystemServer {
         }
 
         FileSystemServer.config = config;
+        operationStateHandler = new ServerOperationStateHandler();
         ThreadFactory threadFactory = config.getThreadBuilder().factory();
         try (ServerSocket serverSocket = new ServerSocket(config.getPort())) {
             while (!shouldStop) {
@@ -53,5 +56,9 @@ public class FileSystemServer {
 
     public static void signalToStop() {
         shouldStop = true;
+    }
+
+    public static ServerOperationStateHandler getOperationStateHandler() {
+        return operationStateHandler;
     }
 }
