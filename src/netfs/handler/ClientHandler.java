@@ -1,5 +1,7 @@
 package netfs.handler;
 
+import netfs.diskio.JNFSInputStream;
+import netfs.diskio.JNFSOutputStream;
 import netfs.net.FileSystemServer;
 
 import java.io.*;
@@ -97,9 +99,9 @@ public class ClientHandler implements Runnable {
                 FileSystemServer.getOperationStateHandler()
                         .addMetaGetOperationState(id, "open: " + target.getAbsolutePath());
                 if (target.exists()) {
-                    writeLine(out, "S");
+                    JNFSOutputStream.writeLine(out, "S");
                 } else {
-                    writeLine(out, "F");
+                    JNFSOutputStream.writeLine(out, "F");
                 }
             }
         } catch (Exception e) {

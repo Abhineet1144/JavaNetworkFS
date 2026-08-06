@@ -186,7 +186,7 @@ public class Tmp1 extends FuseStubFS {
             var s = new Socket("localhost", 10002);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("open:" + path);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 s.close();
                 return 0;
