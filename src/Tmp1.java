@@ -61,6 +61,8 @@ public class Tmp1 extends FuseStubFS {
         stbuf.f_blocks.set(1000000L);  // Total blocks
         stbuf.f_bfree.set(500000L);    // Free blocks available
         stbuf.f_bavail.set(500000L);   // Free blocks for unprivileged users
+        stbuf.f_namemax.set(255);      // File name size
+
         System.out.println("b: " + path);
         return 0;
     }
