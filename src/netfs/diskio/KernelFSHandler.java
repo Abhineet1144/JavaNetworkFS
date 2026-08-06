@@ -174,21 +174,7 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int open(String path, FuseFileInfo fi) {
         System.out.println("Open file: " + path);
-        try {
-            var s = new Socket(host, port);
-            var i = s.getInputStream();
-            new PrintWriter(s.getOutputStream(), true).println("open:" + path);
-            String resp = JNFSInputStream.readLine(i);
-            if (isSuccess(resp)) {
-                s.close();
-                return 0;
-            } else {
-                s.close();
-                return -1;
-            }
-        } catch (IOException e) {
-            throw new RuntimeException();
-        }
+        return 0;
     }
 
     /**
