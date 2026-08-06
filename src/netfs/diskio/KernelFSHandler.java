@@ -256,13 +256,12 @@ public class KernelFSHandler extends FuseStubFS {
             s = new Socket(host, port);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + (int) size);
-            String resp = JNFSInputStream.readLine(i);
-            byte[] data = new byte[Integer.parseInt(resp)];
-            i.read(data, 0, Integer.parseInt(resp));
+            int resp = Integer.parseInt(JNFSInputStream.readLine(i));
+            byte[] data = new byte[resp];
+            i.read(data, 0, resp);
             if (offset < data.length) {
-                int bytesToWrite = (int) Math.min(data.length - offset, size);
-                buf.put(0, data, (int) offset, bytesToWrite);
-                return bytesToWrite;
+                buf.put(0, data, 0, resp);
+                return resp;
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
