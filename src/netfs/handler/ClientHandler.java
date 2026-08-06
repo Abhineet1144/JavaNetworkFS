@@ -63,6 +63,9 @@ public class ClientHandler implements Runnable {
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 FileSystemServer.getOperationStateHandler()
                         .addMetaGetOperationState(id, "create: " + target.getAbsolutePath());
+                if (target.exists()) {
+                    JNFSOutputStream.writeLine(out, "S");
+                }
                 if (target.createNewFile()) {
                     JNFSOutputStream.writeLine(out, "S");
                 } else {
