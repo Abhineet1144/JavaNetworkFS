@@ -1,3 +1,4 @@
+import netfs.diskio.JNFSInputStream;
 import netfs.handler.ClientHandler;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
@@ -84,9 +85,9 @@ public class Tmp1 extends FuseStubFS {
             new PrintWriter(s.getOutputStream(), true).println("ls:" + path);
             var i = s.getInputStream();
             String li = "";
-            while (!(li = ClientHandler.readLine(i)).isEmpty()) {
+            while (!(li = JNFSInputStream.readLine(i)).isEmpty()) {
                 filler.apply(buf, li, null, 0);
-                String li2 = ClientHandler.readLine(i);
+                String li2 = JNFSInputStream.readLine(i);
                 map.put(path + (path.endsWith("/") ? "" : "/") + li, li2);
             }
             System.out.println(map);
@@ -109,7 +110,7 @@ public class Tmp1 extends FuseStubFS {
             var s = new Socket("localhost", 10002);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("mkdir:" + path);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.put(path, resp);
             } else {
@@ -133,7 +134,7 @@ public class Tmp1 extends FuseStubFS {
             var s = new Socket("localhost", 10002);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.remove(path);
             } else {
@@ -161,7 +162,7 @@ public class Tmp1 extends FuseStubFS {
             var s = new Socket("localhost", 10002);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("create:" + path);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.put(path, "1:0");
             } else {
@@ -203,7 +204,7 @@ public class Tmp1 extends FuseStubFS {
             var s = new Socket("localhost", 10002);
             var i = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.remove(path);
             } else {
@@ -229,7 +230,7 @@ public class Tmp1 extends FuseStubFS {
             PrintWriter printWriter = new PrintWriter(s.getOutputStream(), true);
             printWriter.println("rename:" + oldPath);
             printWriter.println(newPath);
-            String resp = ClientHandler.readLine(i);
+            String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.remove(oldPath);
                 map.put(newPath, resp);
@@ -262,11 +263,21 @@ public class Tmp1 extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        byte[] data = "Hello World!".getBytes();
-        if (offset < data.length) {
-            int bytesToWrite = (int) Math.min(data.length - offset, size);
-            buf.put(0, data, (int) offset, bytesToWrite);
-            return bytesToWrite; // Return number of bytes actually read
+        Socket s = null;
+        try {
+            s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + (int) size);
+            String resp = JNFSInputStream.readLine(i);
+            byte[] data = new byte[Integer.parseInt(resp)];
+            i.read(data, 0, Integer.parseInt(resp));
+            if (offset < data.length) {
+                int bytesToWrite = (int) Math.min(data.length - offset, size);
+                buf.put(0, data, (int) offset, bytesToWrite);
+                return bytesToWrite;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return 0; // EOF (End of File)
     }
