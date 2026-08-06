@@ -1,7 +1,5 @@
 package netfs.handler;
 
-import netfs.diskio.JNFSInputStream;
-import netfs.diskio.JNFSOutputStream;
 import netfs.net.FileSystemServer;
 
 import java.io.*;
@@ -93,6 +91,16 @@ public class ClientHandler implements Runnable {
                         .addMetaGetOperationState(id, "Reading " + path + " chunk with offset: "
                                 + offset +" and chunksize: " + limit);
                 out.writeFileChunk(target, offset, limit);
+            } else if (cmd.startsWith(CommandConsts.Prefixes.OPEN_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.OPEN_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                FileSystemServer.getOperationStateHandler()
+                        .addMetaGetOperationState(id, "open: " + target.getAbsolutePath());
+                if (target.exists()) {
+                    writeLine(out, "S");
+                } else {
+                    writeLine(out, "F");
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

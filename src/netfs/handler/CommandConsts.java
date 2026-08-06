@@ -8,5 +8,6 @@ public class CommandConsts {
         public static final String CREATE_CMD = "create:";
         public static final String RENAME_CMD = "rename:";
         public static final String READ_CMD = "read:";
+        public static final String OPEN_CMD = "open:";
     }
 }

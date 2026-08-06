@@ -182,7 +182,21 @@ public class Tmp1 extends FuseStubFS {
     @Override
     public int open(String path, FuseFileInfo fi) {
         System.out.println("Open file: " + path);
-        return 0;
+        try {
+            var s = new Socket("localhost", 10002);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("open:" + path);
+            String resp = ClientHandler.readLine(i);
+            if (isSuccess(resp)) {
+                s.close();
+                return 0;
+            } else {
+                s.close();
+                return -1;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
     }
 
     /**
