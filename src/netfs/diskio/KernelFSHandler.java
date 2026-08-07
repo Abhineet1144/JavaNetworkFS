@@ -1,9 +1,11 @@
 package netfs.diskio;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -244,6 +246,24 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int truncate(String path, long size) {
         System.out.println("Truncate file " + path + " to size: " + size);
+        try {
+            var s = new Socket(host, port);
+            var i = s.getInputStream();
+            PrintWriter printWriter = new PrintWriter(s.getOutputStream(), true);
+            printWriter.println("truncate:" + path);
+            printWriter.println(size);
+            String resp = JNFSInputStream.readLine(i);
+            if (isSuccess(resp)) {
+                map.remove(path);
+                map.put(path, resp);
+            } else {
+                s.close();
+                return -1;
+            }
+            s.close();
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
         return 0;
     }
 
@@ -273,9 +293,16 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        byte[] dataToWrite = new byte[(int) size];
-        buf.get(0, dataToWrite, 0, (int) size);
-
+        try {
+            Socket s = new Socket(host, port);
+            var i = s.getOutputStream();
+            byte[] dataToWrite = new byte[(int) size];
+            buf.get(0, dataToWrite, 0, (int) size);
+            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
+            new DataOutputStream(i).write(dataToWrite);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         System.out.println("Wrote " + size + " bytes to " + path + " at offset " + offset);
         return (int) size; // Return number of bytes written
     }

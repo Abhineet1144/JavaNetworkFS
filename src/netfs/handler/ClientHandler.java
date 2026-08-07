@@ -6,6 +6,7 @@ import netfs.net.FileSystemServer;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ClientHandler implements Runnable {
@@ -18,9 +19,10 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        try (JNFSInputStream in = new JNFSInputStream(socket.getInputStream(), FileSystemServer.getOperationStateHandler());
-             JNFSOutputStream out = new JNFSOutputStream(socket.getOutputStream(), FileSystemServer.getOperationStateHandler());
-        ) {
+        try (JNFSInputStream in = new JNFSInputStream(socket.getInputStream(),
+                FileSystemServer.getOperationStateHandler());
+                JNFSOutputStream out = new JNFSOutputStream(socket.getOutputStream(),
+                        FileSystemServer.getOperationStateHandler());) {
             long id = reqId.getAndIncrement();
             String path;
             File target;
@@ -76,8 +78,8 @@ public class ClientHandler implements Runnable {
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 String newPath = JNFSInputStream.readLine(in);
                 File renamefile = new File(FileSystemServer.getConfig().getSharedFolder(), newPath);
-                FileSystemServer.getOperationStateHandler()
-                        .addMetaGetOperationState(id, "rename: " + target.getAbsolutePath() + "->" + renamefile.getAbsolutePath());
+                FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
+                        "rename: " + target.getAbsolutePath() + "->" + renamefile.getAbsolutePath());
                 if (target.renameTo(renamefile)) {
                     JNFSOutputStream.writeLine(out, (renamefile.isDirectory() ? 2 : 1) + ":" + renamefile.length());
                 } else {
@@ -92,9 +94,8 @@ public class ClientHandler implements Runnable {
                 if (!target.exists() || target.isDirectory()) {
                     JNFSOutputStream.writeLine(out, "F");
                 }
-                FileSystemServer.getOperationStateHandler()
-                        .addMetaGetOperationState(id, "Reading " + path + " chunk with offset: "
-                                + offset +" and chunksize: " + limit);
+                FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
+                        "Reading " + path + " chunk with offset: " + offset + " and chunksize: " + limit);
                 out.writeFileChunk(target, offset, limit);
             } else if (cmd.startsWith(CommandConsts.Prefixes.OPEN_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.OPEN_CMD.length());
@@ -103,6 +104,39 @@ public class ClientHandler implements Runnable {
                         .addMetaGetOperationState(id, "open: " + target.getAbsolutePath());
                 if (target.exists()) {
                     JNFSOutputStream.writeLine(out, "S");
+                } else {
+                    JNFSOutputStream.writeLine(out, "F");
+                }
+            } else if (cmd.startsWith(CommandConsts.Prefixes.WRITE_CMD)) {
+                String[] insts = cmd.substring(CommandConsts.Prefixes.WRITE_CMD.length()).split(":");
+                path = insts[0];
+                long offset = Long.parseLong(insts[1]);
+                int len = Integer.parseInt(insts[2]);
+
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+
+                if (!target.exists() || target.isDirectory()) {
+                    JNFSOutputStream.writeLine(out, "F");
+                }
+                FileSystemServer.getOperationStateHandler()
+                        .addMetaGetOperationState(id, "Writing  " + path + " with offset: " + offset);
+                byte[] data = JNFSInputStream.readTill(in, len);
+                RandomAccessFile raf = new RandomAccessFile(target, "rw");
+                raf.seek(offset);
+                raf.write(data);
+                raf.close();
+            } else if (cmd.startsWith(CommandConsts.Prefixes.TRUNCATE_CMD)) {
+                path = cmd.substring(CommandConsts.Prefixes.TRUNCATE_CMD.length());
+                target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
+                long size = Long.parseLong(JNFSInputStream.readLine(in));
+
+                FileSystemServer.getOperationStateHandler()
+                        .addMetaGetOperationState(id, "truncate: " + target.getAbsolutePath() + " size: " + size);
+                if (target.exists()) {
+                    RandomAccessFile raf = new RandomAccessFile(target, "rw");
+                    raf.setLength(size);
+                    raf.close();
+                    JNFSOutputStream.writeLine(out, "1:" + size);
                 } else {
                     JNFSOutputStream.writeLine(out, "F");
                 }

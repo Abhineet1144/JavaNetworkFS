@@ -9,5 +9,7 @@ public class CommandConsts {
         public static final String RENAME_CMD = "rename:";
         public static final String READ_CMD = "read:";
         public static final String OPEN_CMD = "open:";
+        public static final String WRITE_CMD = "write:";
+        public static final String TRUNCATE_CMD = "truncate:";
     }
 }

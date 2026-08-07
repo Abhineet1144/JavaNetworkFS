@@ -36,4 +36,18 @@ public class JNFSInputStream extends BufferedInputStream {
             line.append((char) value);
         }
     }
+
+    public static byte[] readTill(JNFSInputStream in, int length) throws IOException {
+        byte[] buffer = new byte[length];
+        int totalRead = 0;
+
+        while (totalRead < length) {
+            int result = in.read(buffer, totalRead, length - totalRead);
+            if (result == -1) {
+                break; // Stream ended prematurely
+            }
+            totalRead += result;
+        }
+        return buffer;
+    }
 }
