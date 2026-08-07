@@ -10,7 +10,7 @@ public class FileSystemClient {
 
     public FileSystemClient(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
-        kernelFSHandler = new KernelFSHandler(clientConfig.getHost(), clientConfig.getPort());
+        kernelFSHandler = new KernelFSHandler(clientConfig.getHost(), clientConfig.getPort(), clientConfig.getCacheSize(), clientConfig.getMaxCache());
     }
 
     public void start() {
