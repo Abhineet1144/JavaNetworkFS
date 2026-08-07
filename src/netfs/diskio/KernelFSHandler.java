@@ -28,17 +28,19 @@ public class KernelFSHandler extends FuseStubFS {
     private final Map<String, String> map = new HashMap<>();
 
     private final Map<String, ArrayList<CacheBlock>> cache = new LinkedHashMap<>();
-    private int cacheMemory = 0;
-    private final int MAX_CACHE = 104857600;
-    private final int cacheSize = 1048576;
+    private long cacheMemory = 0;
+    private long maxCache;
+    private long cacheSize;
     private final Object cacheLock = new Object();
 
     private String host;
     private int port;
 
-    public KernelFSHandler(String host, int port) {
+    public KernelFSHandler(String host, int port, long cacheSize, long maxCache) {
         this.port = port;
         this.host = host;
+        this.cacheSize = cacheSize;
+        this.maxCache = maxCache;
     }
 
     /**
@@ -281,12 +283,12 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("Cache size: " + cacheMemory + " / " + MAX_CACHE + " bytes");
+        System.out.println("Cache size: " + cacheMemory + " / " + maxCache + " bytes");
         try {
             synchronized (cacheLock) {
 
                 // Limit cache memory size
-                while (cacheMemory > MAX_CACHE && !cache.isEmpty()) {
+                while (cacheMemory > maxCache && !cache.isEmpty()) {
                     String oldestKey = cache.keySet().iterator().next();
                     int oldestCacheSize = 0;
                     for (CacheBlock block : cache.get(oldestKey)) {
@@ -306,14 +308,12 @@ public class KernelFSHandler extends FuseStubFS {
                         int startIndex = (int) (offset - block.getStartOffset());
                         int bytesToCopy = Math.toIntExact(size);
                         buf.put(0, block.getData(), startIndex, bytesToCopy);
-                        System.out.println("Using Cache");
                         return bytesToCopy;
                     }
                 }
             }
 
             // If cache not hit
-            System.out.println("Not using Cache");
             Socket s = new Socket(host, port);
             var in = s.getInputStream();
             new PrintWriter(s.getOutputStream(), true).println(
