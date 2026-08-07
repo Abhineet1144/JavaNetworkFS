@@ -5,16 +5,12 @@ public class ClientConfig {
     private final String host;
     private final int port;
     private final boolean mountOptions;
-    private final long maxCache;
-    private final long cacheSize;
 
-    public ClientConfig(String mountPoint, String host, int port, boolean mountOptions, long maxCache, long cacheSize) {
+    public ClientConfig(String mountPoint, String host, int port, boolean mountOptions) {
         this.mountPoint = mountPoint;
         this.host = host;
         this.port = port;
         this.mountOptions = mountOptions;
-        this.maxCache = maxCache;
-        this.cacheSize = cacheSize;
     }
 
     public String getMountPoint() {
@@ -31,13 +27,5 @@ public class ClientConfig {
 
     public boolean getMountOptions() {
         return mountOptions;
-    }
-
-    public long getMaxCache() {
-        return maxCache;
-    }
-
-    public long getCacheSize() {
-        return cacheSize;
     }
 }

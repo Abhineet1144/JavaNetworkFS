@@ -5,11 +5,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jnr.ffi.Pointer;
@@ -26,26 +24,17 @@ import ru.serce.jnrfuse.struct.Timespec;
 public class KernelFSHandler extends FuseStubFS {
 
     private final Map<String, String> map = new HashMap<>();
-
-    private final Map<String, ArrayList<CacheBlock>> cache = new LinkedHashMap<>();
-    private long cacheMemory = 0;
-    private long maxCache;
-    private long cacheSize;
-    private final Object cacheLock = new Object();
-
     private String host;
     private int port;
 
-    public KernelFSHandler(String host, int port, long cacheSize, long maxCache) {
+    public KernelFSHandler(String host, int port) {
         this.port = port;
         this.host = host;
-        this.cacheSize = cacheSize;
-        this.maxCache = maxCache;
     }
 
     /**
-     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory. Called constantly by the OS
-     * whenever listing or accessing files.
+     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory.
+     * Called constantly by the OS whenever listing or accessing files.
      */
     @Override
     public int getattr(String path, FileStat stat) {
@@ -283,87 +272,20 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("Cache size: " + cacheMemory + " / " + maxCache + " bytes");
+        Socket s = null;
         try {
-            synchronized (cacheLock) {
-
-                // Limit cache memory size
-                while (cacheMemory > maxCache && !cache.isEmpty()) {
-                    String oldestKey = cache.keySet().iterator().next();
-                    int oldestCacheSize = 0;
-                    for (CacheBlock block : cache.get(oldestKey)) {
-                        oldestCacheSize += block.getData().length;
-                    }
-                    cache.remove(oldestKey);
-                    cacheMemory -= oldestCacheSize;
-                    System.out.println("CACHE MAXED: removed " + oldestKey + ": " + oldestCacheSize);
-                }
-            }
-
-            // Check for cache hit
-            ArrayList<CacheBlock> cacheBlockList = cache.get(path);
-            if (cacheBlockList != null) {
-                for (CacheBlock block : cacheBlockList) {
-                    if (offset >= block.getStartOffset() && offset + size <= block.getEndOffset()) {
-                        int startIndex = (int) (offset - block.getStartOffset());
-                        int bytesToCopy = Math.toIntExact(size);
-                        buf.put(0, block.getData(), startIndex, bytesToCopy);
-                        return bytesToCopy;
-                    }
-                }
-            }
-
-            // If cache not hit
-            Socket s = new Socket(host, port);
-            var in = s.getInputStream();
-            new PrintWriter(s.getOutputStream(), true).println(
-                    "read:" + path + ":" + offset + ":" + size + ":" + cacheSize);
-            int resp = Integer.parseInt(JNFSInputStream.readLine(in));
+            s = new Socket(host, port);
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + (int) size);
+            int resp = Integer.parseInt(JNFSInputStream.readLine(i));
             byte[] data = new byte[resp];
-            new DataInputStream(in).readFully(data);
-
-            CacheBlock block = new CacheBlock(data, offset, offset + data.length);
-            synchronized (cacheLock) {
-                addToCache(path, block);
-            }
-
-            int bytesToCopy = Math.min((int) size, data.length);
-            buf.put(0, data, 0, bytesToCopy);
-            return bytesToCopy;
+            new DataInputStream(i).readFully(data);
+            System.out.println("read: " + data.length + " req: " + size + " readHeader: " + resp);
+            buf.put(0, data, 0, resp);
+            return resp;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    // Merges offsets
-    private void addToCache(String path, CacheBlock newBlock) {
-        ArrayList<CacheBlock> blocks = cache.computeIfAbsent(path, k -> new ArrayList<>());
-
-        long mergedStart = newBlock.getStartOffset();
-        long mergedEnd = newBlock.getEndOffset();
-        byte[] mergedData = newBlock.getData();
-
-        Iterator<CacheBlock> it = blocks.iterator();
-        while (it.hasNext()) {
-            CacheBlock existing = it.next();
-            if (existing.getStartOffset() <= mergedEnd && mergedStart <= existing.getEndOffset()) {
-                long newStart = Math.min(existing.getStartOffset(), mergedStart);
-                long newEnd = Math.max(existing.getEndOffset(), mergedEnd);
-                byte[] combined = new byte[(int) (newEnd - newStart)];
-
-                System.arraycopy(existing.getData(), 0, combined, (int) (existing.getStartOffset() - newStart),
-                        existing.getData().length);
-                System.arraycopy(mergedData, 0, combined, (int) (mergedStart - newStart), mergedData.length);
-
-                cacheMemory -= existing.getData().length;
-                it.remove();
-                mergedStart = newStart;
-                mergedEnd = newEnd;
-                mergedData = combined;
-            }
-        }
-        blocks.add(new CacheBlock(mergedData, mergedStart, mergedEnd));
-        cacheMemory += mergedData.length;
     }
 
     /**
@@ -376,8 +298,7 @@ public class KernelFSHandler extends FuseStubFS {
             var i = s.getOutputStream();
             byte[] dataToWrite = new byte[(int) size];
             buf.get(0, dataToWrite, 0, (int) size);
-            new PrintWriter(s.getOutputStream(), true).println(
-                    "write:" + path + ":" + offset + ":" + dataToWrite.length);
+            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
             new DataOutputStream(i).write(dataToWrite);
         } catch (IOException e) {
             throw new RuntimeException(e);

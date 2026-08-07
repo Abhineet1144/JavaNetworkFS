@@ -26,7 +26,7 @@ public class ClientHandler implements Runnable {
             long id = reqId.getAndIncrement();
             String path;
             File target;
-            String cmd = JNFSInputStream.readLine(in).trim();
+            String cmd = JNFSInputStream.readLine(in);
             if (cmd.startsWith(CommandConsts.Prefixes.LIST_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.LIST_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
@@ -89,18 +89,14 @@ public class ClientHandler implements Runnable {
                 String[] insts = cmd.substring(CommandConsts.Prefixes.READ_CMD.length()).split(":");
                 path = insts[0];
                 long offset = Long.parseLong(insts[1]);
-                int requestedSize = Integer.parseInt(insts[2]);
-                int cacheSize = Integer.parseInt(insts[3]);
-
+                int limit = Integer.parseInt(insts[2]);
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
                 if (!target.exists() || target.isDirectory()) {
                     JNFSOutputStream.writeLine(out, "F");
                 }
-                int readSize = requestedSize + cacheSize;
-
                 FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
-                        "Reading " + path + " chunk with offset: " + offset + " and chunk size: " + readSize);
-                out.writeFileChunk(target, offset, readSize);
+                        "Reading " + path + " chunk with offset: " + offset + " and chunksize: " + limit);
+                out.writeFileChunk(target, offset, limit);
             } else if (cmd.startsWith(CommandConsts.Prefixes.OPEN_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.OPEN_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);
