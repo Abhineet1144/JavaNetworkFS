@@ -5,8 +5,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +24,8 @@ import ru.serce.jnrfuse.struct.Timespec;
 public class KernelFSHandler extends FuseStubFS {
 
     private final Map<String, String> map = new HashMap<>();
+    private final ArrayList<CacheBlock> cache = new ArrayList<>();
+
     private String host;
     private int port;
 
@@ -33,8 +35,8 @@ public class KernelFSHandler extends FuseStubFS {
     }
 
     /**
-     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory.
-     * Called constantly by the OS whenever listing or accessing files.
+     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory. Called constantly by the OS
+     * whenever listing or accessing files.
      */
     @Override
     public int getattr(String path, FileStat stat) {
@@ -272,17 +274,36 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        Socket s = null;
         try {
-            s = new Socket(host, port);
+            for (CacheBlock cacheBlock : cache) {
+                if (offset >= cacheBlock.getStartOffset() && offset + size <= cacheBlock.getEndOffset()) {
+                    int startIndex = (int) (offset - cacheBlock.getStartOffset());
+                    int bytesToCopy = Math.toIntExact(size);
+
+                    buf.put(0, cacheBlock.getData(), startIndex, bytesToCopy);
+                    System.out.println("Using Cache");
+                    return bytesToCopy;
+                }
+            }
+            Socket s = new Socket(host, port);
             var i = s.getInputStream();
-            new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + (int) size);
+
+            int cacheSize = 1000000;
+
+            new PrintWriter(s.getOutputStream(), true)
+                    .println("read:" + path + ":" + offset + ":" + size + ":" + cacheSize);
             int resp = Integer.parseInt(JNFSInputStream.readLine(i));
             byte[] data = new byte[resp];
             new DataInputStream(i).readFully(data);
-            System.out.println("read: " + data.length + " req: " + size + " readHeader: " + resp);
-            buf.put(0, data, 0, resp);
-            return resp;
+            CacheBlock block = new CacheBlock(data, offset, offset + data.length);
+            cache.add(block);
+
+            int startIndex = 0;
+            int bytesToCopy = Math.min((int) size, data.length);
+
+            buf.put(0, data, startIndex, bytesToCopy);
+
+            return bytesToCopy;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -298,7 +319,8 @@ public class KernelFSHandler extends FuseStubFS {
             var i = s.getOutputStream();
             byte[] dataToWrite = new byte[(int) size];
             buf.get(0, dataToWrite, 0, (int) size);
-            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
+            new PrintWriter(s.getOutputStream(), true).println(
+                    "write:" + path + ":" + offset + ":" + dataToWrite.length);
             new DataOutputStream(i).write(dataToWrite);
         } catch (IOException e) {
             throw new RuntimeException(e);
