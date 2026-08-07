@@ -26,7 +26,7 @@ public class ClientHandler implements Runnable {
             long id = reqId.getAndIncrement();
             String path;
             File target;
-            String cmd = JNFSInputStream.readLine(in);
+            String cmd = JNFSInputStream.readLine(in).trim();
             if (cmd.startsWith(CommandConsts.Prefixes.LIST_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.LIST_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);

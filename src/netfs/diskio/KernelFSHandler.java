@@ -8,6 +8,8 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jnr.ffi.Pointer;
@@ -24,7 +26,12 @@ import ru.serce.jnrfuse.struct.Timespec;
 public class KernelFSHandler extends FuseStubFS {
 
     private final Map<String, String> map = new HashMap<>();
-    private final ArrayList<CacheBlock> cache = new ArrayList<>();
+
+    private final Map<String, ArrayList<CacheBlock>> cache = new LinkedHashMap<>();
+    private int cacheMemory = 0;
+    private final int MAX_CACHE = 104857600;
+    private final int cacheSize = 1048576;
+    private final Object cacheLock = new Object();
 
     private String host;
     private int port;
@@ -274,39 +281,89 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
+        System.out.println("Cache size: " + cacheMemory + " / " + MAX_CACHE + " bytes");
         try {
-            for (CacheBlock cacheBlock : cache) {
-                if (offset >= cacheBlock.getStartOffset() && offset + size <= cacheBlock.getEndOffset()) {
-                    int startIndex = (int) (offset - cacheBlock.getStartOffset());
-                    int bytesToCopy = Math.toIntExact(size);
+            synchronized (cacheLock) {
 
-                    buf.put(0, cacheBlock.getData(), startIndex, bytesToCopy);
-                    System.out.println("Using Cache");
-                    return bytesToCopy;
+                // Limit cache memory size
+                while (cacheMemory > MAX_CACHE && !cache.isEmpty()) {
+                    String oldestKey = cache.keySet().iterator().next();
+                    int oldestCacheSize = 0;
+                    for (CacheBlock block : cache.get(oldestKey)) {
+                        oldestCacheSize += block.getData().length;
+                    }
+                    cache.remove(oldestKey);
+                    cacheMemory -= oldestCacheSize;
+                    System.out.println("CACHE MAXED: removed " + oldestKey + ": " + oldestCacheSize);
                 }
             }
+
+            // Check for cache hit
+            ArrayList<CacheBlock> cacheBlockList = cache.get(path);
+            if (cacheBlockList != null) {
+                for (CacheBlock block : cacheBlockList) {
+                    if (offset >= block.getStartOffset() && offset + size <= block.getEndOffset()) {
+                        int startIndex = (int) (offset - block.getStartOffset());
+                        int bytesToCopy = Math.toIntExact(size);
+                        buf.put(0, block.getData(), startIndex, bytesToCopy);
+                        System.out.println("Using Cache");
+                        return bytesToCopy;
+                    }
+                }
+            }
+
+            // If cache not hit
+            System.out.println("Not using Cache");
             Socket s = new Socket(host, port);
-            var i = s.getInputStream();
-
-            int cacheSize = 1000000;
-
-            new PrintWriter(s.getOutputStream(), true)
-                    .println("read:" + path + ":" + offset + ":" + size + ":" + cacheSize);
-            int resp = Integer.parseInt(JNFSInputStream.readLine(i));
+            var in = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println(
+                    "read:" + path + ":" + offset + ":" + size + ":" + cacheSize);
+            int resp = Integer.parseInt(JNFSInputStream.readLine(in));
             byte[] data = new byte[resp];
-            new DataInputStream(i).readFully(data);
+            new DataInputStream(in).readFully(data);
+
             CacheBlock block = new CacheBlock(data, offset, offset + data.length);
-            cache.add(block);
+            synchronized (cacheLock) {
+                addToCache(path, block);
+            }
 
-            int startIndex = 0;
             int bytesToCopy = Math.min((int) size, data.length);
-
-            buf.put(0, data, startIndex, bytesToCopy);
-
+            buf.put(0, data, 0, bytesToCopy);
             return bytesToCopy;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    // Merges offsets
+    private void addToCache(String path, CacheBlock newBlock) {
+        ArrayList<CacheBlock> blocks = cache.computeIfAbsent(path, k -> new ArrayList<>());
+
+        long mergedStart = newBlock.getStartOffset();
+        long mergedEnd = newBlock.getEndOffset();
+        byte[] mergedData = newBlock.getData();
+
+        Iterator<CacheBlock> it = blocks.iterator();
+        while (it.hasNext()) {
+            CacheBlock existing = it.next();
+            if (existing.getStartOffset() <= mergedEnd && mergedStart <= existing.getEndOffset()) {
+                long newStart = Math.min(existing.getStartOffset(), mergedStart);
+                long newEnd = Math.max(existing.getEndOffset(), mergedEnd);
+                byte[] combined = new byte[(int) (newEnd - newStart)];
+
+                System.arraycopy(existing.getData(), 0, combined, (int) (existing.getStartOffset() - newStart),
+                        existing.getData().length);
+                System.arraycopy(mergedData, 0, combined, (int) (mergedStart - newStart), mergedData.length);
+
+                cacheMemory -= existing.getData().length;
+                it.remove();
+                mergedStart = newStart;
+                mergedEnd = newEnd;
+                mergedData = combined;
+            }
+        }
+        blocks.add(new CacheBlock(mergedData, mergedStart, mergedEnd));
+        cacheMemory += mergedData.length;
     }
 
     /**
