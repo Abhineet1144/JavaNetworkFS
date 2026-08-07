@@ -2,18 +2,17 @@ package netfs.handler;
 
 import netfs.handler.state.ServerOperation;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ServerOperationStateHandler implements OperationHandler {
-    private final Map<Long, ServerOperation> serverOperations;
+    private final ConcurrentHashMap<Long, ServerOperation> serverOperations;
 
     private AtomicLong bytesRead = new AtomicLong();
     private AtomicLong bytesWrite = new AtomicLong();
 
     public ServerOperationStateHandler() {
-        serverOperations = new LinkedHashMap<>();
+        serverOperations = new ConcurrentHashMap<>();
     }
 
     @Override
