@@ -27,8 +27,7 @@ public class KernelFSHandler extends FuseStubFS {
     private final Map<String, String> map = new HashMap<>();
     private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
     private static final Map<String, Long> lastReadOffset = new ConcurrentHashMap<>();
-    private static final long JUMP_THRESHOLD = 1024 * 1024; // 1 MB
-
+    private static final double JUMP_THRESHOLD_MULTIPLIER = 2.0;
     private String host;
     private int port;
 
@@ -287,13 +286,13 @@ public class KernelFSHandler extends FuseStubFS {
         synchronized (lock) {
             try {
                 Long prevOffset = lastReadOffset.get(path);
-                boolean isBigJump = prevOffset != null && Math.abs(offset - prevOffset) > JUMP_THRESHOLD;
-                lastReadOffset.put(path, offset); // always update, regardless of hit/miss/jump
+                long jumpThreshold = (long) (CacheManager.getCacheSize() * JUMP_THRESHOLD_MULTIPLIER);
+                boolean isBigJump = prevOffset != null && Math.abs(offset - prevOffset) > jumpThreshold;
+                lastReadOffset.put(path, offset);
 
                 CacheBlock cacheBlock = CacheManager.getCache(path);
 
                 if (isBigJump) {
-                    System.out.println("BIG JUMP: path=" + path + " offset=" + offset + " prev=" + prevOffset);
                     if (cacheBlock != null) {
                         CacheManager.evict(path);
                         cacheBlock = null;
@@ -309,7 +308,6 @@ public class KernelFSHandler extends FuseStubFS {
                         int start = (int) (offset - cacheStart);
                         int length = (int) size;
                         buf.put(0, cacheBlock.getData(), start, length);
-                        System.out.println("CACHE HIT: " + path + " offset=" + offset + " size=" + size);
                         return length;
                     }
 
@@ -362,8 +360,6 @@ public class KernelFSHandler extends FuseStubFS {
                 Socket s = new Socket(host, port);
                 var i = s.getInputStream();
 
-                System.out.println("Miss");
-
                 new PrintWriter(s.getOutputStream(), true).println(
                         "read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize());
                 int resp = Integer.parseInt(JNFSInputStream.readLine(i));
@@ -376,8 +372,6 @@ public class KernelFSHandler extends FuseStubFS {
                 if (!isBigJump) {
                     CacheBlock block = new CacheBlock(data, offset);
                     CacheManager.allocate(path, offset, block);
-                } else {
-                    System.out.println("SKIP ALLOCATE (big jump): path=" + path + " offset=" + offset);
                 }
 
                 return copyLen;

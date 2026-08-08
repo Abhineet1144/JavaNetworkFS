@@ -61,11 +61,8 @@ public class CacheManager {
     public static void clearCache() {
         for (Map.Entry<String, CacheBlock> entry : cache.entrySet()) {
             if (entry.getValue().isExpired()) {
-                String path = entry.getKey();
-                long prevCache = cache.size();
                 boolean isRemoved = deallocate(entry.getKey());
                 if (isRemoved) {
-                    System.out.println("CACHE REMOVED: " + path + " " + prevCache + " -> " + cache.size());
                     System.gc();
                 }
             }
