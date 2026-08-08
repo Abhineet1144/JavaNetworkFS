@@ -1,8 +1,6 @@
 package netfs.net;
-
 import netfs.config.ClientConfig;
 import netfs.diskio.KernelFSHandler;
-
 import java.nio.file.Paths;
 
 public class FileSystemClient {
@@ -22,7 +20,10 @@ public class FileSystemClient {
         // Mount options:
         // - true: run in foreground (so console stays open)
         // - false: run in background
-        kernelFSHandler.mount(Paths.get(clientConfig.getMountPoint()), clientConfig.getMountOptions());
+       kernelFSHandler.mount(Paths.get(clientConfig.getMountPoint()), true, false, new String[] {
+               "-o", "max_read=131072",   // 1MB
+               "-o", "max_write=131072"
+       });
     }
 
     public ClientConfig getClientConfig() {

@@ -8,7 +8,6 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import jnr.ffi.Pointer;
 import jnr.ffi.types.off_t;
@@ -38,8 +37,8 @@ public class KernelFSHandler extends FuseStubFS {
     }
 
     /**
-     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory. Called constantly by the OS
-     * whenever listing or accessing files.
+     * Gets attributes (size, mode/permissions, timestamps, owner) of a file or directory.
+     * Called constantly by the OS whenever listing or accessing files.
      */
     @Override
     public int getattr(String path, FileStat stat) {
@@ -399,8 +398,7 @@ public class KernelFSHandler extends FuseStubFS {
             var i = s.getOutputStream();
             byte[] dataToWrite = new byte[(int) size];
             buf.get(0, dataToWrite, 0, (int) size);
-            new PrintWriter(s.getOutputStream(), true).println(
-                    "write:" + path + ":" + offset + ":" + dataToWrite.length);
+            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
             new DataOutputStream(i).write(dataToWrite);
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -18,4 +18,6 @@ public interface OperationHandler {
     long getBytesRead();
 
     long getBytesWrite();
+
+    void removeOperationState(long id);
 }

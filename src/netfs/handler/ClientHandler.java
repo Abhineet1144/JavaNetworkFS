@@ -19,11 +19,11 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
+        long id = reqId.getAndIncrement();
         try (JNFSInputStream in = new JNFSInputStream(socket.getInputStream(),
                 FileSystemServer.getOperationStateHandler());
                 JNFSOutputStream out = new JNFSOutputStream(socket.getOutputStream(),
                         FileSystemServer.getOperationStateHandler());) {
-            long id = reqId.getAndIncrement();
             String path;
             File target;
             String cmd = JNFSInputStream.readLine(in);
@@ -96,7 +96,7 @@ public class ClientHandler implements Runnable {
                 if (!target.exists() || target.isDirectory()) {
                     JNFSOutputStream.writeLine(out, "F");
                 }
-                int readSize = cacheSize;
+                int readSize = requestedSize + cacheSize;
 
                 FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
                         "Reading " + path + " chunk with offset: " + offset + " and chunk size: " + readSize);
@@ -148,6 +148,7 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
+            FileSystemServer.getOperationStateHandler().removeOperationState(id);
             FileSystemServer.markSocketClose();
         }
     }
