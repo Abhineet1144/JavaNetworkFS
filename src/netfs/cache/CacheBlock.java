@@ -2,11 +2,10 @@ package netfs.cache;
 
 public class CacheBlock {
     private final byte[] data;
-    private final int cacheStartOffset;
+    private final long cacheStartOffset;
     private boolean isExpired;
 
-
-    public CacheBlock(byte[] data, int cacheStartOffset) {
+    public CacheBlock(byte[] data, long cacheStartOffset) {
         this.data = data;
         this.cacheStartOffset = cacheStartOffset;
         this.isExpired = false;
@@ -17,7 +16,7 @@ public class CacheBlock {
         return data;
     }
 
-    public int getCacheStartOffset() {
+    public long getCacheStartOffset() {
         isExpired = false;
         return cacheStartOffset;
     }

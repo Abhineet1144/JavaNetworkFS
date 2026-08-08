@@ -27,6 +27,8 @@ public class KernelFSHandler extends FuseStubFS {
 
     private final Map<String, String> map = new HashMap<>();
     private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
+    private static final Map<String, Long> lastReadOffset = new ConcurrentHashMap<>();
+    private static final long JUMP_THRESHOLD = 1024 * 1024; // 1 MB
 
     private String host;
     private int port;
@@ -285,24 +287,33 @@ public class KernelFSHandler extends FuseStubFS {
 
         synchronized (lock) {
             try {
+                Long prevOffset = lastReadOffset.get(path);
+                boolean isBigJump = prevOffset != null && Math.abs(offset - prevOffset) > JUMP_THRESHOLD;
+                lastReadOffset.put(path, offset); // always update, regardless of hit/miss/jump
+
                 CacheBlock cacheBlock = CacheManager.getCache(path);
+
+                if (isBigJump) {
+                    System.out.println("BIG JUMP: path=" + path + " offset=" + offset + " prev=" + prevOffset);
+                    if (cacheBlock != null) {
+                        CacheManager.evict(path);
+                        cacheBlock = null;
+                    }
+                }
+
                 if (cacheBlock != null) {
                     long cacheStart = cacheBlock.getCacheStartOffset();
                     long cacheEnd = cacheStart + cacheBlock.getData().length;
-
                     long requestEnd = offset + size;
 
                     if (offset >= cacheStart && requestEnd <= cacheEnd) {
-
-                        int start = (int) (offset - cacheBlock.getCacheStartOffset());
+                        int start = (int) (offset - cacheStart);
                         int length = (int) size;
-
                         buf.put(0, cacheBlock.getData(), start, length);
                         System.out.println("CACHE HIT: " + path + " offset=" + offset + " size=" + size);
                         return length;
                     }
 
-                    // Right partial hit
                     if (offset >= cacheStart && offset < cacheEnd && requestEnd > cacheEnd) {
                         int cachedBytes = (int) (cacheEnd - offset);
                         int missingBytes = (int) (requestEnd - cacheEnd);
@@ -314,12 +325,10 @@ public class KernelFSHandler extends FuseStubFS {
                         long targetFileSize = Long.parseLong(mapEntry.split(":")[1]);
 
                         if (cacheEnd >= targetFileSize) {
-                            System.out.println("PARTIAL HIT + EOF: cached=" + cachedBytes);
                             return cachedBytes;
                         }
 
                         byte[] missingData = getData(path, cacheEnd, missingBytes);
-
                         int missingLen = Math.min(missingData.length, missingBytes);
                         buf.put(cachedBytes, missingData, 0, missingLen);
 
@@ -327,13 +336,11 @@ public class KernelFSHandler extends FuseStubFS {
                         byte[] merged = new byte[existing.length + missingLen];
                         System.arraycopy(existing, 0, merged, 0, existing.length);
                         System.arraycopy(missingData, 0, merged, existing.length, missingLen);
-                        CacheManager.allocate(path, new CacheBlock(merged, (int) cacheStart));
+                        CacheManager.allocate(path, cacheStart, new CacheBlock(merged, cacheStart));
 
-                        System.out.println("PARTIAL HIT: cached=" + cachedBytes + " missing=" + missingLen);
                         return cachedBytes + missingLen;
                     }
 
-                    //left partial hit
                     if (offset < cacheStart && requestEnd > cacheStart && requestEnd <= cacheEnd) {
                         int missingBytes = (int) (cacheStart - offset);
                         int cachedBytes = (int) (requestEnd - cacheStart);
@@ -341,16 +348,14 @@ public class KernelFSHandler extends FuseStubFS {
                         byte[] missingData = getData(path, offset, missingBytes);
                         int missingLen = Math.min(missingData.length, missingBytes);
                         buf.put(0, missingData, 0, missingLen);
-
                         buf.put(missingLen, cacheBlock.getData(), 0, cachedBytes);
 
                         byte[] existing = cacheBlock.getData();
                         byte[] merged = new byte[missingLen + existing.length];
                         System.arraycopy(missingData, 0, merged, 0, missingLen);
                         System.arraycopy(existing, 0, merged, missingLen, existing.length);
-                        CacheManager.allocate(path, new CacheBlock(merged, (int) offset));
+                        CacheManager.allocate(path, offset, new CacheBlock(merged, offset));
 
-                        System.out.println("PARTIAL HIT (left): missing=" + missingLen + " cached=" + cachedBytes);
                         return missingLen + cachedBytes;
                     }
                 }
@@ -365,11 +370,16 @@ public class KernelFSHandler extends FuseStubFS {
                 int resp = Integer.parseInt(JNFSInputStream.readLine(i));
                 byte[] data = new byte[resp];
                 new DataInputStream(i).readFully(data);
-                CacheBlock block = new CacheBlock(data, (int) offset);
-                CacheManager.allocate(path, block);
 
                 int copyLen = Math.min((int) size, data.length);
                 buf.put(0, data, 0, copyLen);
+
+                if (!isBigJump) {
+                    CacheBlock block = new CacheBlock(data, offset);
+                    CacheManager.allocate(path, offset, block);
+                } else {
+                    System.out.println("SKIP ALLOCATE (big jump): path=" + path + " offset=" + offset);
+                }
 
                 return copyLen;
             } catch (IOException e) {
