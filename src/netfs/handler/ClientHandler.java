@@ -96,7 +96,7 @@ public class ClientHandler implements Runnable {
                 if (!target.exists() || target.isDirectory()) {
                     JNFSOutputStream.writeLine(out, "F");
                 }
-                int readSize = requestedSize + cacheSize;
+                int readSize = cacheSize;
 
                 FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
                         "Reading " + path + " chunk with offset: " + offset + " and chunk size: " + readSize);

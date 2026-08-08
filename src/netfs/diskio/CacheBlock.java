@@ -1,25 +1,19 @@
 package netfs.diskio;
 
 public class CacheBlock {
-    private final long startOffset;
-    private final long endOffset;
     private final byte[] data;
+    private final int cacheStartOffset;
 
-    public CacheBlock(byte[] data, long startOffset, long endOffset) {
+    public CacheBlock(byte[] data, int cacheStartOffset) {
         this.data = data;
-        this.endOffset = endOffset;
-        this.startOffset = startOffset;
-    }
-
-    public long getStartOffset() {
-        return startOffset;
-    }
-
-    public long getEndOffset() {
-        return endOffset;
+        this.cacheStartOffset = cacheStartOffset;
     }
 
     public byte[] getData() {
         return data;
+    }
+
+    public int getCacheStartOffset() {
+        return cacheStartOffset;
     }
 }
