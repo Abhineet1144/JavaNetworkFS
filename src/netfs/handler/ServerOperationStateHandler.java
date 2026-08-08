@@ -29,7 +29,7 @@ public class ServerOperationStateHandler implements OperationHandler {
 
     @Override
     public void updateDetails() {
-        System.out.println(serverOperations);
+//        System.out.println(serverOperations);
     }
 
     @Override
@@ -60,5 +60,11 @@ public class ServerOperationStateHandler implements OperationHandler {
     @Override
     public long getBytesWrite() {
         return bytesWrite.longValue();
+    }
+
+    @Override
+    public void removeOperationState(long id) {
+        serverOperations.remove(id);
+        updateDetails();
     }
 }
