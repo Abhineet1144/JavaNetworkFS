@@ -7,17 +7,14 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.IllegalFormatCodePointException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import jnr.ffi.Pointer;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
+import netfs.cache.CacheBlock;
+import netfs.cache.CacheManager;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
@@ -29,39 +26,15 @@ import ru.serce.jnrfuse.struct.Timespec;
 public class KernelFSHandler extends FuseStubFS {
 
     private final Map<String, String> map = new HashMap<>();
-    private final Map<String, CacheBlock> cache = new ConcurrentHashMap<>();
     private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
-    private final int cacheSize = 10485760;
-    private final int maxCacheSize = 20971520;
-    private final AtomicLong totalCacheBytes = new AtomicLong(0);
 
     private String host;
     private int port;
 
-    public KernelFSHandler(String host, int port) {
+    public KernelFSHandler(String host, int port, int cacheSize, int maxFileCache) {
         this.port = port;
         this.host = host;
-        Thread cleanupThread = new Thread(() -> {
-            while (true) {
-                if (totalCacheBytes.get() >= maxCacheSize) {
-                    cleanCache();
-                }
-
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    break;
-                }
-            }
-        });
-        cleanupThread.setDaemon(true);
-        cleanupThread.start();
-    }
-
-    private void cleanCache() {
-        System.out.println("CACHE MAXED: cleared " + totalCacheBytes.get());
-        cache.clear();
-        totalCacheBytes.set(0);
+        CacheManager.start(cacheSize, maxFileCache);
     }
 
     /**
@@ -218,13 +191,10 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int release(String path, FuseFileInfo fi) {
         System.out.println("Closed file: " + path);
-
-        CacheBlock removed = cache.remove(path);
-
-        if (removed != null) {
-            totalCacheBytes.addAndGet(-removed.getData().length);
+        CacheBlock block = CacheManager.getCache(path);
+        if (block != null) {
+            block.expired();
         }
-
         return 0;
     }
 
@@ -315,7 +285,7 @@ public class KernelFSHandler extends FuseStubFS {
 
         synchronized (lock) {
             try {
-                CacheBlock cacheBlock = cache.get(path);
+                CacheBlock cacheBlock = CacheManager.getCache(path);
                 if (cacheBlock != null) {
                     long cacheStart = cacheBlock.getCacheStartOffset();
                     long cacheEnd = cacheStart + cacheBlock.getData().length;
@@ -357,8 +327,7 @@ public class KernelFSHandler extends FuseStubFS {
                         byte[] merged = new byte[existing.length + missingLen];
                         System.arraycopy(existing, 0, merged, 0, existing.length);
                         System.arraycopy(missingData, 0, merged, existing.length, missingLen);
-                        cache.put(path, new CacheBlock(merged, (int) cacheStart));
-                        totalCacheBytes.addAndGet(merged.length - existing.length);
+                        CacheManager.allocate(path, new CacheBlock(merged, (int) cacheStart));
 
                         System.out.println("PARTIAL HIT: cached=" + cachedBytes + " missing=" + missingLen);
                         return cachedBytes + missingLen;
@@ -379,8 +348,7 @@ public class KernelFSHandler extends FuseStubFS {
                         byte[] merged = new byte[missingLen + existing.length];
                         System.arraycopy(missingData, 0, merged, 0, missingLen);
                         System.arraycopy(existing, 0, merged, missingLen, existing.length);
-                        cache.put(path, new CacheBlock(merged, (int) offset));
-                        totalCacheBytes.addAndGet(merged.length - existing.length);
+                        CacheManager.allocate(path, new CacheBlock(merged, (int) offset));
 
                         System.out.println("PARTIAL HIT (left): missing=" + missingLen + " cached=" + cachedBytes);
                         return missingLen + cachedBytes;
@@ -393,17 +361,12 @@ public class KernelFSHandler extends FuseStubFS {
                 System.out.println("Miss");
 
                 new PrintWriter(s.getOutputStream(), true).println(
-                        "read:" + path + ":" + offset + ":" + size + ":" + cacheSize);
+                        "read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize());
                 int resp = Integer.parseInt(JNFSInputStream.readLine(i));
                 byte[] data = new byte[resp];
                 new DataInputStream(i).readFully(data);
                 CacheBlock block = new CacheBlock(data, (int) offset);
-                CacheBlock oldBlock = cache.put(path, block);
-                if (oldBlock != null) {
-                    totalCacheBytes.addAndGet(data.length - oldBlock.getData().length);
-                } else {
-                    totalCacheBytes.addAndGet(data.length);
-                }
+                CacheManager.allocate(path, block);
 
                 int copyLen = Math.min((int) size, data.length);
                 buf.put(0, data, 0, copyLen);

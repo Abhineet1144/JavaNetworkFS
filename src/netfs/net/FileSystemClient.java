@@ -1,6 +1,8 @@
 package netfs.net;
+
 import netfs.config.ClientConfig;
 import netfs.diskio.KernelFSHandler;
+
 import java.nio.file.Paths;
 
 public class FileSystemClient {
@@ -10,7 +12,8 @@ public class FileSystemClient {
 
     public FileSystemClient(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
-        kernelFSHandler = new KernelFSHandler(clientConfig.getHost(), clientConfig.getPort());
+        kernelFSHandler = new KernelFSHandler(clientConfig.getHost(), clientConfig.getPort(),
+                clientConfig.getCacheSize(), clientConfig.getMaxFileCache());
     }
 
     public void start() {
@@ -19,7 +22,7 @@ public class FileSystemClient {
         // Mount options:
         // - true: run in foreground (so console stays open)
         // - false: run in background
-       kernelFSHandler.mount(Paths.get(clientConfig.getMountPoint()), clientConfig.getMountOptions());
+        kernelFSHandler.mount(Paths.get(clientConfig.getMountPoint()), clientConfig.getMountOptions());
     }
 
     public ClientConfig getClientConfig() {

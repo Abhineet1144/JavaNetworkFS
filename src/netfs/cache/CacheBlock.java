@@ -1,19 +1,32 @@
-package netfs.diskio;
+package netfs.cache;
 
 public class CacheBlock {
     private final byte[] data;
     private final int cacheStartOffset;
+    private boolean isExpired;
+
 
     public CacheBlock(byte[] data, int cacheStartOffset) {
         this.data = data;
         this.cacheStartOffset = cacheStartOffset;
+        this.isExpired = false;
     }
 
     public byte[] getData() {
+        isExpired = false;
         return data;
     }
 
     public int getCacheStartOffset() {
+        isExpired = false;
         return cacheStartOffset;
+    }
+
+    public void expired() {
+        isExpired = true;
+    }
+
+    public boolean isExpired() {
+        return isExpired;
     }
 }
