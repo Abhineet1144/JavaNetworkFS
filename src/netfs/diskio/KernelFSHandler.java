@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import jnr.ffi.Pointer;
 import jnr.ffi.types.off_t;
