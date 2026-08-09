@@ -11,5 +11,6 @@ public class CommandConsts {
         public static final String OPEN_CMD = "open:";
         public static final String WRITE_CMD = "write:";
         public static final String TRUNCATE_CMD = "truncate:";
+        public static final String STAT_CMD = "stat:";
     }
 }

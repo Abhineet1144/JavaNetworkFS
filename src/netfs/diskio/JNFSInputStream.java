@@ -27,8 +27,9 @@ public class JNFSInputStream extends BufferedInputStream {
             int value = input.read();
             if (value == -1) {
                 if (line.isEmpty()) {
-                    return "";
+                    return null;
                 }
+                return line.toString();
             }
             if (value == '\n') {
                 return line.toString();
