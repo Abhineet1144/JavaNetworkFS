@@ -1,4 +1,5 @@
 package netfs.net;
+import netfs.client.ConnectionPool;
 import netfs.config.ClientConfig;
 import netfs.diskio.KernelFSHandler;
 import java.nio.file.Paths;
@@ -15,6 +16,7 @@ public class FileSystemClient {
     }
 
     public void start() {
+        ConnectionPool.start(clientConfig.getMaxServerConnector());
         System.out.println("Mounting drive at: " + clientConfig.getMountPoint());
 
         // Mount options:
