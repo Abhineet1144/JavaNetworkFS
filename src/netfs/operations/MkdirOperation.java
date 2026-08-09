@@ -1,8 +1,6 @@
 package netfs.operations;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.Map;
 
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;

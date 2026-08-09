@@ -10,12 +10,12 @@ public class ConnectionPool {
     private static ArrayList<ServerConnection> serverConnections;
     private static BlockingQueue<Operation> operationQueue = new LinkedBlockingQueue<>();
 
-    public static void start(int totalServerConnectors) {
+    public static void start(int totalServerConnectors, String host, int port) {
         serverConnections = new ArrayList<>(totalServerConnectors);
         System.out.println("[CLIENT] Starting connection pool with " + totalServerConnectors + " workers");
 
         for (int i = 0; i < totalServerConnectors; i++) {
-            ServerConnection connection = new ServerConnection(i);
+            ServerConnection connection = new ServerConnection(i, host, port);
 
             Thread thread = new Thread(connection);
             thread.start();

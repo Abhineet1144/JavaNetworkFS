@@ -16,7 +16,7 @@ public class FileSystemClient {
     }
 
     public void start() {
-        ConnectionPool.start(clientConfig.getMaxServerConnector());
+        ConnectionPool.start(clientConfig.getMaxServerConnector(), clientConfig.getHost(), clientConfig.getPort());
         System.out.println("[CLIENT] Mounting drive at: " + clientConfig.getMountPoint());
 
         // Mount options:
