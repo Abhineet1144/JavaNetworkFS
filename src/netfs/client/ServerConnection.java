@@ -10,14 +10,19 @@ import netfs.operations.Operation;
 public class ServerConnection implements Runnable {
     private Socket socket;
     private boolean inUse;
+    private int name;
+
+    public ServerConnection(int name) {
+        this.name = name;
+    }
 
     @Override
     public void run() {
         try {
             socket = new Socket("localhost", 10002);
-            System.out.println("connected");
             while (!Thread.currentThread().isInterrupted()) {
                 Operation operation = ConnectionPool.getOperationQueue().take();
+                System.out.println(operation.getOperationType() + " : " + name);
                 try {
                     operation.execute(this);
                 } finally {

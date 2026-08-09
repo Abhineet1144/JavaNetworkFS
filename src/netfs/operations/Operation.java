@@ -20,4 +20,12 @@ public abstract class Operation {
     public void waitForCompletion() throws InterruptedException {
         completion.await();
     }
+
+    public boolean isSuccess(String resp) {
+        return !resp.equals("F");
+    }
+
+    public OperationType getOperationType() {
+        return operationType;
+    }
 }

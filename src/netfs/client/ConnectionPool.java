@@ -14,7 +14,7 @@ public class ConnectionPool {
         serverConnections = new ArrayList<>(totalServerConnectors);
 
         for (int i = 0; i < totalServerConnectors; i++) {
-            ServerConnection connection = new ServerConnection();
+            ServerConnection connection = new ServerConnection(i);
 
             Thread thread = new Thread(connection);
             thread.start();
@@ -25,5 +25,9 @@ public class ConnectionPool {
 
     public static BlockingQueue<Operation> getOperationQueue() {
         return operationQueue;
+    }
+
+    public static void addOperation(Operation operation) throws InterruptedException {
+        operationQueue.put(operation);
     }
 }

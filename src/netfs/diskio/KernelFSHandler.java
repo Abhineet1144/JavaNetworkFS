@@ -16,6 +16,8 @@ import netfs.cache.CacheBlock;
 import netfs.cache.CacheManager;
 import netfs.client.ConnectionPool;
 import netfs.operations.ListOperation;
+import netfs.operations.MkdirOperation;
+import netfs.operations.RmdirOperation;
 import netfs.operations.StatOperation;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
@@ -114,28 +116,10 @@ public class KernelFSHandler extends FuseStubFS {
     public int readdir(String path, Pointer buf, FuseFillDir filler, @off_t long offset, FuseFileInfo fi) {
         filler.apply(buf, ".", null, 0);  // Current directory
         filler.apply(buf, "..", null, 0); // Parent directory
-        //        System.out.println("Getting ls for path: " + path);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            new PrintWriter(s.getOutputStream(), true).println("ls:" + path);
-        //            var i = s.getInputStream();
-        //            String li = "";
-        //            while (!(li = JNFSInputStream.readLine(i)).isEmpty()) {
-        //                filler.apply(buf, li, null, 0);
-        //                String li2 = JNFSInputStream.readLine(i);
-        //                map.put(path + (path.endsWith("/") ? "" : "/") + li, li2);
-        //            }
-        //            //            System.out.println(map);
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException(e);
-        //        }
         try {
-            ListOperation operation = new ListOperation(path, filler, buf, map);
-
-            ConnectionPool.getOperationQueue().put(operation);
-            operation.waitForCompletion();
-
+            ListOperation listOperation = new ListOperation(path, filler, buf, map);
+            ConnectionPool.addOperation(listOperation);
+            listOperation.waitForCompletion();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -148,21 +132,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int mkdir(String path, long mode) {
         System.out.println("Creating folder: " + path);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            new PrintWriter(s.getOutputStream(), true).println("mkdir:" + path);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.put(path, resp);
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            MkdirOperation mkdirOperation = new MkdirOperation(path, map);
+            ConnectionPool.addOperation(mkdirOperation);
+            mkdirOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -172,21 +148,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int rmdir(String path) {
         System.out.println("Remove folder: " + path);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.remove(path);
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            RmdirOperation rmdirOperation = new RmdirOperation(path, map);
+            ConnectionPool.addOperation(rmdirOperation);
+            rmdirOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -342,7 +310,7 @@ public class KernelFSHandler extends FuseStubFS {
         //                    long cacheEnd = cacheStart + cacheBlock.getData().length;
         //                    long requestEnd = offset + size;
         //
-        //                    if (offset >= cacheStart && requestEnd <= cacheEnd) {
+        //                    if (offset >= cacheStart && requestEnd <= cacheEnd) {https://www.instagram.com/
         //                        int start = (int) (offset - cacheStart);
         //                        int length = (int) size;
         //                        buf.put(0, cacheBlock.getData(), start, length);

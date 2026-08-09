@@ -7,5 +7,6 @@ public enum OperationType {
     STAT,
     DELETE,
     MKDIR,
-    RENAME
+    RENAME,
+    RMDIR
 }
