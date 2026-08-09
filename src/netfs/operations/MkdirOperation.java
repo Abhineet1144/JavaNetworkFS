@@ -6,15 +6,14 @@ import java.util.Map;
 
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
+import netfs.diskio.KernelFSHandler;
 
 public class MkdirOperation extends Operation{
 
     private final String path;
-    private final Map<String, String> map;
 
-    public MkdirOperation(String path, Map<String, String> map) {
+    public MkdirOperation(String path) {
         this.path = path;
-        this.map = map;
         operationType = OperationType.MKDIR;
     }
 
@@ -24,7 +23,7 @@ public class MkdirOperation extends Operation{
         new PrintWriter(connection.getOutputStream(), true).println("mkdir:" + path);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
-            map.put(path, resp);
+            KernelFSHandler.map.put(path, resp);
         }
     }
 }

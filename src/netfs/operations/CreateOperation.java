@@ -2,27 +2,28 @@ package netfs.operations;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Map;
 
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.KernelFSHandler;
 
-public class RmdirOperation extends Operation {
+public class CreateOperation extends Operation {
 
     private final String path;
 
-    public RmdirOperation(String path) {
+    public CreateOperation(String path) {
         this.path = path;
-        operationType = OperationType.RMDIR;
+        operationType = OperationType.CREATE;
     }
 
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        new PrintWriter(connection.getOutputStream(), true).println("rmdir:" + path);
+        new PrintWriter(connection.getOutputStream(), true).println("create:" + path);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
-            KernelFSHandler.map.remove(path);
+            KernelFSHandler.map.put(path, "1:0");
         }
     }
 }

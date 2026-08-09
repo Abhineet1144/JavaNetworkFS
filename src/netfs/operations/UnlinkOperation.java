@@ -7,13 +7,13 @@ import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.KernelFSHandler;
 
-public class RmdirOperation extends Operation {
+public class UnlinkOperation extends Operation {
 
     private final String path;
 
-    public RmdirOperation(String path) {
+    public UnlinkOperation(String path) {
         this.path = path;
-        operationType = OperationType.RMDIR;
+        operationType = OperationType.DELETE;
     }
 
     @Override

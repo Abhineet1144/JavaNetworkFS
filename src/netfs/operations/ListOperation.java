@@ -7,6 +7,7 @@ import java.util.Map;
 import jnr.ffi.Pointer;
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
+import netfs.diskio.KernelFSHandler;
 import ru.serce.jnrfuse.FuseFillDir;
 
 public class ListOperation extends Operation {
@@ -14,13 +15,11 @@ public class ListOperation extends Operation {
     private final String path;
     private final FuseFillDir filler;
     private final Pointer buf;
-    private final Map<String, String> map;
 
-    public ListOperation(String path, FuseFillDir filler, Pointer buf, Map<String, String> map) {
+    public ListOperation(String path, FuseFillDir filler, Pointer buf) {
         this.path = path;
         this.filler = filler;
         this.buf = buf;
-        this.map = map;
         operationType = OperationType.LIST;
     }
 
@@ -36,7 +35,7 @@ public class ListOperation extends Operation {
             if (li2 == null) {
                 throw new IOException("Connection closed while reading metadata for " + path + "/" + li);
             }
-            map.put(path + (path.endsWith("/") ? "" : "/") + li, li2);
+            KernelFSHandler.map.put(path + (path.endsWith("/") ? "" : "/") + li, li2);
             filler.apply(buf, li, null, 0);
         }
         if (li == null) {

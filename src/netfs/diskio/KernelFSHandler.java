@@ -1,10 +1,5 @@
 package netfs.diskio;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.Socket;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,10 +10,15 @@ import jnr.ffi.types.size_t;
 import netfs.cache.CacheBlock;
 import netfs.cache.CacheManager;
 import netfs.client.ConnectionPool;
+import netfs.operations.CreateOperation;
 import netfs.operations.ListOperation;
 import netfs.operations.MkdirOperation;
+import netfs.operations.ReadOperation;
+import netfs.operations.RenameOperation;
 import netfs.operations.RmdirOperation;
-import netfs.operations.StatOperation;
+import netfs.operations.TruncateOperation;
+import netfs.operations.UnlinkOperation;
+import netfs.operations.WriteOperation;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
@@ -29,10 +29,9 @@ import ru.serce.jnrfuse.struct.Timespec;
 
 public class KernelFSHandler extends FuseStubFS {
 
-    private final Map<String, String> map = new ConcurrentHashMap<>();
+    public static final Map<String, String> map = new ConcurrentHashMap<>();
     private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
-    private static final Map<String, Long> lastReadOffset = new ConcurrentHashMap<>();
-    private static final double JUMP_THRESHOLD_MULTIPLIER = 2.0;
+
     private String host;
     private int port;
 
@@ -55,12 +54,10 @@ public class KernelFSHandler extends FuseStubFS {
         }
 
         String b = map.get(path);
-        if (b == null) {
-            b = fetchStat(path);
-        }
-
-        if (b != null && isSuccess(b)) {
-            applyStat(stat, b);
+        if (b != null) {
+            stat.st_mode.set((b.split(":")[0].equals("2") ? FileStat.S_IFDIR : FileStat.S_IFREG) | 0755);
+            stat.st_nlink.set(Integer.parseInt(b.split(":")[0]));
+            stat.st_size.set(Long.parseLong(b.split(":")[1]));
             return 0;
         }
 
@@ -68,30 +65,6 @@ public class KernelFSHandler extends FuseStubFS {
         //        System.out.println("unavail" + map);
         //        System.out.println(path);
         return -ErrorCodes.ENOENT();
-    }
-
-    private String fetchStat(String path) {
-        try {
-            StatOperation operation = new StatOperation(path);
-            ConnectionPool.getOperationQueue().put(operation);
-            operation.waitForCompletion();
-
-            String response = operation.getResponse();
-            if (response != null && isSuccess(response)) {
-                map.put(path, response);
-            }
-            return response;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        }
-    }
-
-    private void applyStat(FileStat stat, String statValue) {
-        String[] parts = statValue.split(":");
-        stat.st_mode.set((parts[0].equals("2") ? FileStat.S_IFDIR : FileStat.S_IFREG) | 0755);
-        stat.st_nlink.set(Integer.parseInt(parts[0]));
-        stat.st_size.set(Long.parseLong(parts[1]));
     }
 
     /**
@@ -117,7 +90,7 @@ public class KernelFSHandler extends FuseStubFS {
         filler.apply(buf, ".", null, 0);  // Current directory
         filler.apply(buf, "..", null, 0); // Parent directory
         try {
-            ListOperation listOperation = new ListOperation(path, filler, buf, map);
+            ListOperation listOperation = new ListOperation(path, filler, buf);
             ConnectionPool.addOperation(listOperation);
             listOperation.waitForCompletion();
         } catch (InterruptedException e) {
@@ -133,7 +106,7 @@ public class KernelFSHandler extends FuseStubFS {
     public int mkdir(String path, long mode) {
         System.out.println("Creating folder: " + path);
         try {
-            MkdirOperation mkdirOperation = new MkdirOperation(path, map);
+            MkdirOperation mkdirOperation = new MkdirOperation(path);
             ConnectionPool.addOperation(mkdirOperation);
             mkdirOperation.waitForCompletion();
         } catch (InterruptedException e) {
@@ -149,7 +122,7 @@ public class KernelFSHandler extends FuseStubFS {
     public int rmdir(String path) {
         System.out.println("Remove folder: " + path);
         try {
-            RmdirOperation rmdirOperation = new RmdirOperation(path, map);
+            RmdirOperation rmdirOperation = new RmdirOperation(path);
             ConnectionPool.addOperation(rmdirOperation);
             rmdirOperation.waitForCompletion();
         } catch (InterruptedException e) {
@@ -164,21 +137,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int create(String path, long mode, FuseFileInfo fi) {
         System.out.println("Create file: " + path);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            new PrintWriter(s.getOutputStream(), true).println("create:" + path);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.put(path, "1:0");
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            CreateOperation createOperation = new CreateOperation(path);
+            ConnectionPool.addOperation(createOperation);
+            createOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -197,10 +162,10 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int release(String path, FuseFileInfo fi) {
         System.out.println("Closed file: " + path);
-        //        CacheBlock block = CacheManager.getCache(path);
-        //        if (block != null) {
-        //            block.expired();
-        //        }
+        CacheBlock block = CacheManager.getCache(path);
+        if (block != null) {
+            block.expired();
+        }
         return 0;
     }
 
@@ -210,21 +175,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int unlink(String path) {
         System.out.println("Delete file: " + path);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            new PrintWriter(s.getOutputStream(), true).println("rmdir:" + path);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.remove(path);
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            UnlinkOperation unlinkOperation = new UnlinkOperation(path);
+            ConnectionPool.addOperation(unlinkOperation);
+            unlinkOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -234,24 +191,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int rename(String oldPath, String newPath) {
         System.out.println("Rename " + oldPath + " -> " + newPath);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            PrintWriter printWriter = new PrintWriter(s.getOutputStream(), true);
-        //            printWriter.println("rename:" + oldPath);
-        //            printWriter.println(newPath);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.remove(oldPath);
-        //                map.put(newPath, resp);
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            RenameOperation renameOperation = new RenameOperation(oldPath, newPath);
+            ConnectionPool.addOperation(renameOperation);
+            renameOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -261,24 +207,13 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int truncate(String path, long size) {
         System.out.println("Truncate file " + path + " to size: " + size);
-        //        try {
-        //            var s = new Socket(host, port);
-        //            var i = s.getInputStream();
-        //            PrintWriter printWriter = new PrintWriter(s.getOutputStream(), true);
-        //            printWriter.println("truncate:" + path);
-        //            printWriter.println(size);
-        //            String resp = JNFSInputStream.readLine(i);
-        //            if (isSuccess(resp)) {
-        //                map.remove(path);
-        //                map.put(path, resp);
-        //            } else {
-        //                s.close();
-        //                return -1;
-        //            }
-        //            s.close();
-        //        } catch (IOException e) {
-        //            throw new RuntimeException();
-        //        }
+        try {
+            TruncateOperation truncateOperation = new TruncateOperation(path, size);
+            ConnectionPool.addOperation(truncateOperation);
+            truncateOperation.waitForCompletion();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return 0;
     }
 
@@ -287,116 +222,17 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        //        Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
-        //
-        //        synchronized (lock) {
-        //            try {
-        //                Long prevOffset = lastReadOffset.get(path);
-        //                long jumpThreshold = (long) (CacheManager.getCacheSize() * JUMP_THRESHOLD_MULTIPLIER);
-        //                boolean isBigJump = prevOffset != null && Math.abs(offset - prevOffset) > jumpThreshold;
-        //                lastReadOffset.put(path, offset);
-        //
-        //                CacheBlock cacheBlock = CacheManager.getCache(path);
-        //
-        //                if (isBigJump) {
-        //                    if (cacheBlock != null) {
-        //                        CacheManager.evict(path);
-        //                        cacheBlock = null;
-        //                    }
-        //                }
-        //
-        //                if (cacheBlock != null) {
-        //                    long cacheStart = cacheBlock.getCacheStartOffset();
-        //                    long cacheEnd = cacheStart + cacheBlock.getData().length;
-        //                    long requestEnd = offset + size;
-        //
-        //                    if (offset >= cacheStart && requestEnd <= cacheEnd) {https://www.instagram.com/
-        //                        int start = (int) (offset - cacheStart);
-        //                        int length = (int) size;
-        //                        buf.put(0, cacheBlock.getData(), start, length);
-        //                        return length;
-        //                    }
-        //
-        //                    if (offset >= cacheStart && offset < cacheEnd && requestEnd > cacheEnd) {
-        //                        int cachedBytes = (int) (cacheEnd - offset);
-        //                        int missingBytes = (int) (requestEnd - cacheEnd);
-        //                        int cacheStartIndex = (int) (offset - cacheStart);
-        //
-        //                        buf.put(0, cacheBlock.getData(), cacheStartIndex, cachedBytes);
-        //
-        //                        String mapEntry = map.get(path);
-        //                        long targetFileSize = Long.parseLong(mapEntry.split(":")[1]);
-        //
-        //                        if (cacheEnd >= targetFileSize) {
-        //                            return cachedBytes;
-        //                        }
-        //
-        //                        byte[] missingData = getData(path, cacheEnd, missingBytes);
-        //                        int missingLen = Math.min(missingData.length, missingBytes);
-        //                        buf.put(cachedBytes, missingData, 0, missingLen);
-        //
-        //                        byte[] existing = cacheBlock.getData();
-        //                        byte[] merged = new byte[existing.length + missingLen];
-        //                        System.arraycopy(existing, 0, merged, 0, existing.length);
-        //                        System.arraycopy(missingData, 0, merged, existing.length, missingLen);
-        //                        CacheManager.allocate(path, cacheStart, new CacheBlock(merged, cacheStart));
-        //
-        //                        return cachedBytes + missingLen;
-        //                    }
-        //
-        //                    if (offset < cacheStart && requestEnd > cacheStart && requestEnd <= cacheEnd) {
-        //                        int missingBytes = (int) (cacheStart - offset);
-        //                        int cachedBytes = (int) (requestEnd - cacheStart);
-        //
-        //                        byte[] missingData = getData(path, offset, missingBytes);
-        //                        int missingLen = Math.min(missingData.length, missingBytes);
-        //                        buf.put(0, missingData, 0, missingLen);
-        //                        buf.put(missingLen, cacheBlock.getData(), 0, cachedBytes);
-        //
-        //                        byte[] existing = cacheBlock.getData();
-        //                        byte[] merged = new byte[missingLen + existing.length];
-        //                        System.arraycopy(missingData, 0, merged, 0, missingLen);
-        //                        System.arraycopy(existing, 0, merged, missingLen, existing.length);
-        //                        CacheManager.allocate(path, offset, new CacheBlock(merged, offset));
-        //
-        //                        return missingLen + cachedBytes;
-        //                    }
-        //                }
-        //
-        //                Socket s = new Socket(host, port);
-        //                var i = s.getInputStream();
-        //
-        //                new PrintWriter(s.getOutputStream(), true).println(
-        //                        "read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize());
-        //                int resp = Integer.parseInt(JNFSInputStream.readLine(i));
-        //                byte[] data = new byte[resp];
-        //                new DataInputStream(i).readFully(data);
-        //
-        //                int copyLen = Math.min((int) size, data.length);
-        //                buf.put(0, data, 0, copyLen);
-        //
-        //                if (!isBigJump) {
-        //                    CacheBlock block = new CacheBlock(data, offset);
-        //                    CacheManager.allocate(path, offset, block);
-        //                }
-        //
-        //                return copyLen;
-        //            } catch (IOException e) {
-        //                throw new RuntimeException(e);
-        //            }
-        //        }
-        return 0;
-    }
-
-    public byte[] getData(String path, long offset, int cacheSize) throws IOException {
-        Socket s = new Socket(host, port);
-        var i = s.getInputStream();
-
-        new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":000:" + cacheSize);
-        int resp = Integer.parseInt(JNFSInputStream.readLine(i));
-        byte[] data = new byte[resp];
-        new DataInputStream(i).readFully(data);
-        return data;
+        Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
+        synchronized (lock) {
+            try {
+                ReadOperation readOperation = new ReadOperation(path, buf, size, offset);
+                ConnectionPool.addOperation(readOperation);
+                readOperation.waitForCompletion();
+                return readOperation.getBytesRead();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     /**
@@ -404,18 +240,14 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        //        try {
-        //            Socket s = new Socket(host, port);
-        //            var i = s.getOutputStream();
-        //            byte[] dataToWrite = new byte[(int) size];
-        //            buf.get(0, dataToWrite, 0, (int) size);
-        //            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
-        //            new DataOutputStream(i).write(dataToWrite);
-        //        } catch (IOException e) {
-        //            throw new RuntimeException(e);
-        //        }
-        //        System.out.println("Wrote " + size + " bytes to " + path + " at offset " + offset);
-        return (int) size; // Return number of bytes written
+        try {
+            WriteOperation writeOperation = new WriteOperation(path, buf, size, offset);
+            ConnectionPool.addOperation(writeOperation);
+            writeOperation.waitForCompletion();
+            return writeOperation.getBytesWrote();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -477,9 +309,5 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public void mount(Path mountPoint) {
         super.mount(mountPoint);
-    }
-
-    public boolean isSuccess(String resp) {
-        return !resp.equals("F");
     }
 }

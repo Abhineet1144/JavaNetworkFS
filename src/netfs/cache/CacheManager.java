@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class CacheManager {
     private static final Map<String, CacheBlock> cache = new ConcurrentHashMap<>();
+    private static final Map<String, Long> lastReadOffset = new ConcurrentHashMap<>();
+    private static final double JUMP_THRESHOLD_MULTIPLIER = 2.0;
     private static int cacheSize;
     private static int maxFileCache;
 
@@ -71,5 +73,13 @@ public class CacheManager {
 
     public static void evict(String path) {
         cache.remove(path);
+    }
+
+    public static double getJumpThresholdMultiplier() {
+        return JUMP_THRESHOLD_MULTIPLIER;
+    }
+
+    public static Map<String, Long> getLastReadOffset() {
+        return lastReadOffset;
     }
 }

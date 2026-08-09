@@ -8,5 +8,7 @@ public enum OperationType {
     DELETE,
     MKDIR,
     RENAME,
-    RMDIR
+    RMDIR,
+    CREATE,
+    TRUNCATE
 }
