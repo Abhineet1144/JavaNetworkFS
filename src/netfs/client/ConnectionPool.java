@@ -12,6 +12,7 @@ public class ConnectionPool {
 
     public static void start(int totalServerConnectors) {
         serverConnections = new ArrayList<>(totalServerConnectors);
+        System.out.println("[CLIENT] Starting connection pool with " + totalServerConnectors + " workers");
 
         for (int i = 0; i < totalServerConnectors; i++) {
             ServerConnection connection = new ServerConnection(i);
@@ -28,6 +29,7 @@ public class ConnectionPool {
     }
 
     public static void addOperation(Operation operation) throws InterruptedException {
+        System.out.println("[CLIENT] Queue operation: " + operation.getOperationType());
         operationQueue.put(operation);
     }
 }

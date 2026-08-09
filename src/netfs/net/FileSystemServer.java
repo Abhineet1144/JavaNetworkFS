@@ -28,8 +28,11 @@ public class FileSystemServer {
         operationStateHandler = new ServerOperationStateHandler();
         ThreadFactory threadFactory = config.getThreadBuilder().factory();
         try (ServerSocket serverSocket = new ServerSocket(config.getPort())) {
+            System.out.println("[SERVER] Listening on port " + config.getPort()
+                    + ", sharedFolder=" + config.getSharedFolder());
             while (!shouldStop) {
                 Socket client = serverSocket.accept();
+                System.out.println("[SERVER] Accepted client: " + client.getRemoteSocketAddress());
                 while (threadsUsed > config.getMaxThreads()) {
                     Thread.sleep(3000);
                 }

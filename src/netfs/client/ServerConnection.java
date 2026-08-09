@@ -20,12 +20,14 @@ public class ServerConnection implements Runnable {
     public void run() {
         try {
             socket = new Socket("localhost", 10002);
+            System.out.println("[CLIENT] Server connection " + name + " connected");
             while (!Thread.currentThread().isInterrupted()) {
                 Operation operation = ConnectionPool.getOperationQueue().take();
-                System.out.println(operation.getOperationType() + " : " + name);
+                System.out.println("[CLIENT] Worker " + name + " executing operation: " + operation.getOperationType());
                 try {
                     operation.execute(this);
                 } finally {
+                    System.out.println("[CLIENT] Worker " + name + " completed operation: " + operation.getOperationType());
                     operation.complete();
                 }
             }

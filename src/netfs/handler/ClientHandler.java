@@ -23,12 +23,14 @@ public class ClientHandler implements Runnable {
                 FileSystemServer.getOperationStateHandler());
                 JNFSOutputStream out = new JNFSOutputStream(socket.getOutputStream(),
                         FileSystemServer.getOperationStateHandler())) {
+            System.out.println("[SERVER] Handler " + id + " started for " + socket.getRemoteSocketAddress());
             String cmd;
 
             while (!socket.isClosed() && (cmd = JNFSInputStream.readLine(in)) != null) {
                 if (cmd.isEmpty()) {
                     continue;
                 }
+                System.out.println("[SERVER] Handler " + id + " received command: " + cmd);
                 String path;
                 File target;
                 if (cmd.startsWith(CommandConsts.Prefixes.LIST_CMD)) {
@@ -170,6 +172,7 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
+            System.out.println("[SERVER] Handler " + id + " closed for " + socket.getRemoteSocketAddress());
             FileSystemServer.getOperationStateHandler().removeOperationState(id);
             FileSystemServer.markSocketClose();
         }

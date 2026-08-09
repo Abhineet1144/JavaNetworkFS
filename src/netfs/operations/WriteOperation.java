@@ -32,6 +32,7 @@ public class WriteOperation extends Operation {
                 "write:" + path + ":" + offset + ":" + dataToWrite.length);
         new DataOutputStream(i).write(dataToWrite);
         bytesWrote = (int) size;
+        System.out.println("[CLIENT] Remote write sent path=" + path + ", offset=" + offset + ", bytes=" + bytesWrote);
     }
 
     public int getBytesWrote() {

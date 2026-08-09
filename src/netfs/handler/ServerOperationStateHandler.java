@@ -29,7 +29,6 @@ public class ServerOperationStateHandler implements OperationHandler {
 
     @Override
     public void updateDetails() {
-//        System.out.println(serverOperations);
     }
 
     @Override

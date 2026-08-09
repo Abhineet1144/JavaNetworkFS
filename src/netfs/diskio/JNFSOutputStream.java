@@ -29,7 +29,8 @@ public class JNFSOutputStream extends BufferedOutputStream {
         raf.seek(offset);
         byte[] buffer = new byte[limit];
         int read = raf.read(buffer, 0, limit);
-        System.out.println(read);
+        System.out.println("[SERVER] Read file chunk file=" + file.getAbsolutePath() + ", offset=" + offset
+                + ", requested=" + limit + ", bytesRead=" + read);
         writeLine(this, read + "");
         write(buffer, 0, read);
         flush();
