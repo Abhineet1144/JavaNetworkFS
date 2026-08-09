@@ -2,7 +2,6 @@ package netfs.operations;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Map;
 
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
@@ -20,7 +19,7 @@ public class CreateOperation extends Operation {
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        new PrintWriter(connection.getOutputStream(), true).println("create:" + path);
+        sendRequest("create:" + path, connection);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
             KernelFSHandler.map.put(path, "1:0");

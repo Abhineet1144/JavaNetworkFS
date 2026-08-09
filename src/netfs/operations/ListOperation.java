@@ -25,8 +25,7 @@ public class ListOperation extends Operation {
 
     @Override
     public void execute(ServerConnection connection) throws IOException {
-        new PrintWriter(connection.getOutputStream(), true).println("ls:" + path);
-
+        sendRequest("ls:" + path, connection);
         var input = connection.getInputStream();
 
         String li;

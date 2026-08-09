@@ -20,14 +20,13 @@ public class TruncateOperation extends Operation {
 
     @Override
     public void execute(ServerConnection connection) throws IOException {
-            var i = connection.getInputStream();
-            PrintWriter printWriter = new PrintWriter(connection.getOutputStream(), true);
-            printWriter.println("truncate:" + path);
-            printWriter.println(size);
-            String resp = JNFSInputStream.readLine(i);
-            if (isSuccess(resp)) {
-                KernelFSHandler.map.remove(path);
-                KernelFSHandler.map.put(path, resp);
-            }
+        var i = connection.getInputStream();
+        PrintWriter printWriter = sendRequest("truncate:" + path, connection);
+        printWriter.println(size);
+        String resp = JNFSInputStream.readLine(i);
+        if (isSuccess(resp)) {
+            KernelFSHandler.map.remove(path);
+            KernelFSHandler.map.put(path, resp);
+        }
     }
 }

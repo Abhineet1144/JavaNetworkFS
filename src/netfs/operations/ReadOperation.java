@@ -121,8 +121,7 @@ public class ReadOperation extends Operation{
 
             System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size
                     + ", prefetch=" + CacheManager.getCacheSize());
-            new PrintWriter(connection.getOutputStream(), true).println(
-                    "read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize());
+            sendRequest("read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize(), connection);
             int resp = Integer.parseInt(JNFSInputStream.readLine(i));
             byte[] data = new byte[resp];
             new DataInputStream(i).readFully(data);

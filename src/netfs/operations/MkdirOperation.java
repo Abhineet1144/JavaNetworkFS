@@ -20,7 +20,7 @@ public class MkdirOperation extends Operation{
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        new PrintWriter(connection.getOutputStream(), true).println("mkdir:" + path);
+        sendRequest("mkdir:" + path, connection);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
             KernelFSHandler.map.put(path, resp);

@@ -1,6 +1,7 @@
 package netfs.operations;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.concurrent.CountDownLatch;
 
 import netfs.client.ServerConnection;
@@ -27,5 +28,11 @@ public abstract class Operation {
 
     public OperationType getOperationType() {
         return operationType;
+    }
+
+    protected PrintWriter sendRequest(String req, ServerConnection connection) {
+        PrintWriter printWriter = new PrintWriter(connection.getOutputStream(), true);
+        printWriter.println(req);
+        return printWriter;
     }
 }

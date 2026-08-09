@@ -28,8 +28,7 @@ public class WriteOperation extends Operation {
         var i = connection.getOutputStream();
         byte[] dataToWrite = new byte[(int) size];
         buf.get(0, dataToWrite, 0, (int) size);
-        new PrintWriter(connection.getOutputStream(), true).println(
-                "write:" + path + ":" + offset + ":" + dataToWrite.length);
+        sendRequest("write:" + path + ":" + offset + ":" + dataToWrite.length, connection);
         new DataOutputStream(i).write(dataToWrite);
         bytesWrote = (int) size;
         System.out.println("[CLIENT] Remote write sent path=" + path + ", offset=" + offset + ", bytes=" + bytesWrote);

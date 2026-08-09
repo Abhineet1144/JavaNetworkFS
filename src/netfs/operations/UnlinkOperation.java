@@ -19,7 +19,7 @@ public class UnlinkOperation extends Operation {
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        new PrintWriter(connection.getOutputStream(), true).println("rmdir:" + path);
+        sendRequest("rmdir:" + path, connection);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
             KernelFSHandler.map.remove(path);

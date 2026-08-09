@@ -3,11 +3,12 @@ package netfs.operations;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import netfs.cache.CacheManager;
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.KernelFSHandler;
 
-public class RenameOperation extends Operation{
+public class RenameOperation extends Operation {
 
     private final String oldPath;
     private final String newPath;
@@ -20,16 +21,14 @@ public class RenameOperation extends Operation{
 
     @Override
     public void execute(ServerConnection connection) throws IOException {
-            var i = connection.getInputStream();
-            PrintWriter printWriter = new PrintWriter(connection.getOutputStream(), true);
-            printWriter.println("rename:" + oldPath);
-            printWriter.println(newPath);
-            String resp = JNFSInputStream.readLine(i);
-            if (isSuccess(resp)) {
-                KernelFSHandler.map.remove(oldPath);
-                KernelFSHandler.map.put(newPath, resp);
-            }
+        var i = connection.getInputStream();
+        PrintWriter printWriter = sendRequest("rename:" + oldPath, connection);
+        printWriter.println(newPath);
+        String resp = JNFSInputStream.readLine(i);
+        if (isSuccess(resp)) {
+            KernelFSHandler.map.remove(oldPath);
+            KernelFSHandler.map.put(newPath, resp);
+        }
     }
-
 
 }
