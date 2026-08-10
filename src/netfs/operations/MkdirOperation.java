@@ -16,6 +16,11 @@ public class MkdirOperation extends Operation{
     }
 
     @Override
+    public String getDetail() {
+        return path;
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
         sendRequest("mkdir:" + path, connection);

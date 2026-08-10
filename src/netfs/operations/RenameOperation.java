@@ -20,6 +20,11 @@ public class RenameOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return oldPath + " -> " + newPath;
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
         PrintWriter printWriter = sendRequest("rename:" + oldPath, connection);

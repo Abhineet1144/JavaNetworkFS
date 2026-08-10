@@ -28,6 +28,11 @@ public class ReadOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return path + " (offset=" + offset + ", size=" + size + ")";
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         try {
             Long prevOffset = CacheManager.getLastReadOffset().get(path);
@@ -119,9 +124,13 @@ public class ReadOperation extends Operation {
 
             var i = connection.getInputStream();
 
+            // Always fetch at least as many bytes as were actually requested - the
+            // configured cache size is a prefetch hint, not a cap on the read result.
+            // Otherwise a request larger than the cache size gets silently truncated.
+            int fetchSize = Math.max((int) size, CacheManager.getCacheSize());
             System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size
-                    + ", prefetch=" + CacheManager.getCacheSize());
-            byte[] data = getData(path, offset, CacheManager.getCacheSize(), connection);
+                    + ", prefetch=" + CacheManager.getCacheSize() + ", fetch=" + fetchSize);
+            byte[] data = getData(path, offset, fetchSize, connection);
             int copyLen = Math.min((int) size, data.length);
             buf.put(0, data, 0, copyLen);
 
@@ -139,12 +148,12 @@ public class ReadOperation extends Operation {
         }
     }
 
-    public byte[] getData(String path, long offset, int cacheSize, ServerConnection connection) throws IOException {
+    public byte[] getData(String path, long offset, int length, ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
 
         System.out.println("[CLIENT] Fetch missing cache segment path=" + path + ", offset=" + offset
-                + ", bytes=" + cacheSize);
-        sendRequest("read:" + path + ":" + offset + ":" + CacheManager.getCacheSize(), connection);
+                + ", bytes=" + length);
+        sendRequest("read:" + path + ":" + offset + ":" + length, connection);
         int resp = Integer.parseInt(JNFSInputStream.readLine(i));
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);

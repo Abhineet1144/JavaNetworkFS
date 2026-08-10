@@ -24,6 +24,11 @@ public class WriteOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return path + " (offset=" + offset + ", size=" + size + ")";
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getOutputStream();
         byte[] dataToWrite = new byte[(int) size];

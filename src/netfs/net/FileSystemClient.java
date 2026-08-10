@@ -22,7 +22,11 @@ public class FileSystemClient {
         // Mount options:
         // - true: run in foreground (so console stays open)
         // - false: run in background
+        // "-s": force libfuse's single-threaded dispatch loop. Multi-threaded FUSE
+        // dispatch crashes the JVM with a native SIGSEGV inside libfuse's jffi/libffi
+        // callback trampoline on this libfuse/JDK combination (see hs_err_pid*.log).
        kernelFSHandler.mount(Paths.get(clientConfig.getMountPoint()), true, false, new String[] {
+               "-s",
                "-o", "max_read=131072",   // 1MB
                "-o", "max_write=131072"
        });
@@ -30,5 +34,9 @@ public class FileSystemClient {
 
     public ClientConfig getClientConfig() {
         return clientConfig;
+    }
+
+    public KernelFSHandler getKernelFSHandler() {
+        return kernelFSHandler;
     }
 }

@@ -30,6 +30,11 @@ public abstract class Operation {
         return operationType;
     }
 
+    /** Short human-readable description (typically the target path) used for logging/UI. */
+    public String getDetail() {
+        return "";
+    }
+
     protected PrintWriter sendRequest(String req, ServerConnection connection) {
         PrintWriter printWriter = new PrintWriter(connection.getOutputStream(), true);
         printWriter.println(req);

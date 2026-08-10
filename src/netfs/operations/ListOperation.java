@@ -24,6 +24,11 @@ public class ListOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return path;
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         sendRequest("ls:" + path, connection);
         var input = connection.getInputStream();

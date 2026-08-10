@@ -19,6 +19,11 @@ public class TruncateOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return path + " (size=" + size + ")";
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
         PrintWriter printWriter = sendRequest("truncate:" + path, connection);

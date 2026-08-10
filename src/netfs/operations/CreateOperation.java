@@ -17,6 +17,11 @@ public class CreateOperation extends Operation {
     }
 
     @Override
+    public String getDetail() {
+        return path;
+    }
+
+    @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
         sendRequest("create:" + path, connection);

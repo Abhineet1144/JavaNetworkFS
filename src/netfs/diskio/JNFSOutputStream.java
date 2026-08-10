@@ -24,7 +24,7 @@ public class JNFSOutputStream extends BufferedOutputStream {
         super.write(b, off, len);
     }
 
-    public void writeFileChunk(File file, long offset, int limit) throws IOException {
+    public int writeFileChunk(File file, long offset, int limit) throws IOException {
         RandomAccessFile raf = new RandomAccessFile(file.getAbsoluteFile(), "r");
         raf.seek(offset);
         byte[] buffer = new byte[limit];
@@ -34,6 +34,7 @@ public class JNFSOutputStream extends BufferedOutputStream {
         writeLine(this, read + "");
         write(buffer, 0, read);
         flush();
+        return Math.max(read, 0);
     }
 
     public static void writeLine(OutputStream out, String line) throws IOException {

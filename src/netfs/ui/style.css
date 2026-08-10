@@ -1,0 +1,264 @@
+/* Modern dark theme for the Java Network FS UI */
+
+.app-root {
+    -fx-background-color: #1b1c24;
+}
+
+.root {
+    -fx-font-family: "Segoe UI", "Ubuntu", "Cantarell", sans-serif;
+    -fx-font-size: 13px;
+}
+
+/* Header */
+.header-bar {
+    -fx-background-color: #22232e;
+    -fx-border-color: transparent transparent #33354a transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.app-title {
+    -fx-text-fill: #f2f2f7;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.app-subtitle {
+    -fx-text-fill: #8b8ea3;
+    -fx-font-size: 12px;
+}
+
+/* Tabs */
+.tab-pane {
+    -fx-background-color: transparent;
+    -fx-tab-min-height: 36px;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.tab-pane .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+}
+
+.tab-pane .tab-header-area {
+    -fx-padding: 8 16 0 16;
+}
+
+.tab-pane .tab-header-background {
+    -fx-background-color: #1b1c24;
+}
+
+.tab-pane .tab {
+    -fx-background-color: #24252f;
+    -fx-background-radius: 8 8 0 0;
+    -fx-padding: 8 18 8 18;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #33354a;
+}
+
+.tab-pane .tab-label {
+    -fx-text-fill: #b8bad0;
+    -fx-font-weight: bold;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #f2f2f7;
+}
+
+.tab-pane .tab-content-area {
+    -fx-background-color: #22232e;
+}
+
+/* Labels */
+.label {
+    -fx-text-fill: #d3d4e0;
+}
+
+.section-label {
+    -fx-text-fill: #f2f2f7;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+/* Text fields & checkboxes */
+.text-field {
+    -fx-background-color: #2b2d3a;
+    -fx-text-fill: #f2f2f7;
+    -fx-prompt-text-fill: #74778c;
+    -fx-background-radius: 6;
+    -fx-border-color: #40415a;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-padding: 6 10 6 10;
+}
+
+.text-field:focused {
+    -fx-border-color: #5b7cfa;
+}
+
+.check-box {
+    -fx-text-fill: #d3d4e0;
+}
+
+.check-box .box {
+    -fx-background-color: #2b2d3a;
+    -fx-border-color: #40415a;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+
+/* Buttons */
+.button {
+    -fx-background-radius: 6;
+    -fx-padding: 8 18 8 18;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-background-color: #383a4d;
+    -fx-text-fill: #e4e4ee;
+}
+
+.button:hover {
+    -fx-background-color: #45475f;
+}
+
+.button:disabled {
+    -fx-opacity: 0.45;
+    -fx-cursor: default;
+}
+
+.primary-button {
+    -fx-background-color: #4c6fff;
+    -fx-text-fill: white;
+}
+
+.primary-button:hover {
+    -fx-background-color: #6c8dff;
+}
+
+.danger-button {
+    -fx-background-color: #e5484d;
+    -fx-text-fill: white;
+}
+
+.danger-button:hover {
+    -fx-background-color: #ff6b6f;
+}
+
+/* Status pill */
+.status-pill {
+    -fx-padding: 4 14 4 14;
+    -fx-background-radius: 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.status-idle {
+    -fx-background-color: #33354a;
+    -fx-text-fill: #b8bad0;
+}
+
+.status-pending {
+    -fx-background-color: #4a4420;
+    -fx-text-fill: #f5cf5c;
+}
+
+.status-running {
+    -fx-background-color: #1f4d33;
+    -fx-text-fill: #58e2a0;
+}
+
+.status-error {
+    -fx-background-color: #4d1f24;
+    -fx-text-fill: #ff8a90;
+}
+
+/* Inline error banner */
+.error-banner {
+    -fx-text-fill: #ff8a90;
+    -fx-background-color: #34131a;
+    -fx-background-radius: 6;
+    -fx-border-color: #6b2129;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 12px;
+}
+
+/* Console */
+.log-console {
+    -fx-control-inner-background: #14151c;
+    -fx-text-fill: #d6d6e6;
+    -fx-highlight-fill: #4c6fff;
+    -fx-font-family: "JetBrains Mono", "Consolas", monospace;
+    -fx-font-size: 11.5px;
+}
+
+.log-console .content {
+    -fx-background-color: #14151c;
+}
+
+/* Stats table */
+.hint-label {
+    -fx-text-fill: #74778c;
+    -fx-font-size: 11px;
+}
+
+.table-view {
+    -fx-background-color: #22232e;
+    -fx-control-inner-background: #22232e;
+    -fx-table-cell-border-color: #33354a;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #2b2d3a;
+    -fx-background-radius: 6 6 0 0;
+}
+
+.table-view .column-header,
+.table-view .filler {
+    -fx-background-color: transparent;
+    -fx-size: 34px;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #b8bad0;
+    -fx-font-weight: bold;
+    -fx-font-size: 11.5px;
+}
+
+.table-row-cell {
+    -fx-background-color: #22232e;
+    -fx-text-fill: #d3d4e0;
+    -fx-border-color: transparent transparent #2b2d3a transparent;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: #262733;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #33354a;
+}
+
+.table-view .table-cell {
+    -fx-text-fill: #d3d4e0;
+    -fx-alignment: CENTER-LEFT;
+    -fx-padding: 6 10 6 10;
+}
+
+.status-cell-running {
+    -fx-text-fill: #f5cf5c;
+    -fx-font-weight: bold;
+}
+
+.status-cell-completed {
+    -fx-text-fill: #58e2a0;
+    -fx-font-weight: bold;
+}
+
+.status-cell-failed {
+    -fx-text-fill: #ff8a90;
+    -fx-font-weight: bold;
+}

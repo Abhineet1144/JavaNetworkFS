@@ -3,18 +3,54 @@ package netfs.handler;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.JNFSOutputStream;
 import netfs.net.FileSystemServer;
+import netfs.state.OperationLog;
+import netfs.state.OperationLogEntry;
+import netfs.state.OperationSource;
+import netfs.state.TransferStats;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ClientHandler implements Runnable {
     private static AtomicLong reqId = new AtomicLong();
+
+    private static final Map<String, String> COMMAND_LABELS = new LinkedHashMap<>();
+    static {
+        COMMAND_LABELS.put(CommandConsts.Prefixes.LIST_CMD, "LIST");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.STAT_CMD, "STAT");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.MKDIR_CMD, "MKDIR");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.RMDIR_CMD, "RMDIR");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.CREATE_CMD, "CREATE");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.RENAME_CMD, "RENAME");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.READ_CMD, "READ");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.OPEN_CMD, "OPEN");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.WRITE_CMD, "WRITE");
+        COMMAND_LABELS.put(CommandConsts.Prefixes.TRUNCATE_CMD, "TRUNCATE");
+    }
+
     private final Socket socket;
 
     public ClientHandler(Socket socket) {
         this.socket = socket;
     }
+
+    private static String labelFor(String cmd) {
+        for (Map.Entry<String, String> entry : COMMAND_LABELS.entrySet()) {
+            if (cmd.startsWith(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    private static String detailFor(String cmd) {
+        int colon = cmd.indexOf(':');
+        return colon >= 0 ? cmd.substring(colon + 1) : cmd;
+    }
+
 
     @Override
     public void run() {
@@ -31,6 +67,8 @@ public class ClientHandler implements Runnable {
                     continue;
                 }
                 System.out.println("[SERVER] Handler " + id + " received command: " + cmd);
+                OperationLogEntry logEntry = OperationLog.start(OperationSource.HOST, labelFor(cmd), detailFor(cmd));
+                try {
                 String path;
                 File target;
                 if (cmd.startsWith(CommandConsts.Prefixes.LIST_CMD)) {
@@ -38,6 +76,7 @@ public class ClientHandler implements Runnable {
                     target = resolveSharedPath(path);
                     if (!target.isDirectory() || !target.exists()) {
                         JNFSOutputStream.writeLine(out, "");
+                        OperationLog.complete(logEntry);
                         continue;
                     }
                     FileSystemServer.getOperationStateHandler()
@@ -45,6 +84,7 @@ public class ClientHandler implements Runnable {
                     File[] files = target.listFiles();
                     if (files == null) {
                         JNFSOutputStream.writeLine(out, "");
+                        OperationLog.complete(logEntry);
                         continue;
                     }
                     for (File file : files) {
@@ -121,7 +161,8 @@ public class ClientHandler implements Runnable {
 
                     FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
                             "Reading " + path + " chunk with offset: " + offset + " and chunk size: " + cacheSize);
-                    out.writeFileChunk(target, offset, cacheSize);
+                    int sentBytes = out.writeFileChunk(target, offset, cacheSize);
+                    TransferStats.addReadBytes(OperationSource.HOST, sentBytes);
                 } else if (cmd.startsWith(CommandConsts.Prefixes.OPEN_CMD)) {
                     path = cmd.substring(CommandConsts.Prefixes.OPEN_CMD.length());
                     target = resolveSharedPath(path);
@@ -146,6 +187,7 @@ public class ClientHandler implements Runnable {
                     FileSystemServer.getOperationStateHandler()
                             .addMetaGetOperationState(id, "Writing  " + path + " with offset: " + offset);
                     byte[] data = JNFSInputStream.readTill(in, len);
+                    TransferStats.addWriteBytes(OperationSource.HOST, data.length);
                     RandomAccessFile raf = new RandomAccessFile(target, "rw");
                     raf.seek(offset);
                     raf.write(data);
@@ -165,6 +207,11 @@ public class ClientHandler implements Runnable {
                     } else {
                         JNFSOutputStream.writeLine(out, "F");
                     }
+                }
+                OperationLog.complete(logEntry);
+                } catch (Exception e) {
+                    OperationLog.fail(logEntry, e.getMessage());
+                    throw e;
                 }
             }
         } catch (Exception e) {
