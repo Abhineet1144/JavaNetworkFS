@@ -112,14 +112,13 @@ public class ClientHandler implements Runnable {
                     String[] insts = cmd.substring(CommandConsts.Prefixes.READ_CMD.length()).split(":");
                     path = insts[0];
                     long offset = Long.parseLong(insts[1]);
-                    int requestedSize = Integer.parseInt(insts[2]);
                     int cacheSize = Integer.parseInt(insts[3]);
 
                     target = resolveSharedPath(path);
                     if (!target.exists() || target.isDirectory()) {
                         JNFSOutputStream.writeLine(out, "F");
                     }
-                    int readSize = requestedSize + cacheSize;
+                    int readSize = cacheSize;
 
                     FileSystemServer.getOperationStateHandler().addMetaGetOperationState(id,
                             "Reading " + path + " chunk with offset: " + offset + " and chunk size: " + readSize);

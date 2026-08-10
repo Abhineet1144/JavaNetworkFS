@@ -11,7 +11,7 @@ import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.KernelFSHandler;
 
-public class ReadOperation extends Operation{
+public class ReadOperation extends Operation {
 
     private final String path;
     private final Pointer buf;
@@ -148,12 +148,14 @@ public class ReadOperation extends Operation{
 
         System.out.println("[CLIENT] Fetch missing cache segment path=" + path + ", offset=" + offset
                 + ", bytes=" + cacheSize);
-        new PrintWriter(connection.getOutputStream(), true).println("read:" + path + ":" + offset + ":000:" + cacheSize);
+        new PrintWriter(connection.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + cacheSize);
         int resp = Integer.parseInt(JNFSInputStream.readLine(i));
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);
         return data;
     }
 
-    public int getBytesRead() { return bytesRead; }
+    public int getBytesRead() {
+        return bytesRead;
+    }
 }
