@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 
 import jnr.ffi.Pointer;
 import netfs.client.ServerConnection;
+import netfs.diskio.KernelFSHandler;
 
 public class WriteOperation extends Operation {
 
@@ -31,6 +32,12 @@ public class WriteOperation extends Operation {
         sendRequest("write:" + path + ":" + offset + ":" + dataToWrite.length, connection);
         new DataOutputStream(i).write(dataToWrite);
         bytesWrote = (int) size;
+        String metadata = KernelFSHandler.map.get(path);
+        if (metadata == null) {
+            KernelFSHandler.map.put(path, "1:" + size);
+        } else {
+            KernelFSHandler.map.put(path, "1:" + Math.addExact(Integer.parseInt(metadata.split(":")[1]), size));
+        }
         System.out.println("[CLIENT] Remote write sent path=" + path + ", offset=" + offset + ", bytes=" + bytesWrote);
     }
 
