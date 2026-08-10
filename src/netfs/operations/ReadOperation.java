@@ -121,11 +121,7 @@ public class ReadOperation extends Operation {
 
             System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size
                     + ", prefetch=" + CacheManager.getCacheSize());
-            sendRequest("read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize(), connection);
-            int resp = Integer.parseInt(JNFSInputStream.readLine(i));
-            byte[] data = new byte[resp];
-            new DataInputStream(i).readFully(data);
-
+            byte[] data = getData(path, offset, CacheManager.getCacheSize(), connection);
             int copyLen = Math.min((int) size, data.length);
             buf.put(0, data, 0, copyLen);
 
@@ -148,7 +144,7 @@ public class ReadOperation extends Operation {
 
         System.out.println("[CLIENT] Fetch missing cache segment path=" + path + ", offset=" + offset
                 + ", bytes=" + cacheSize);
-        new PrintWriter(connection.getOutputStream(), true).println("read:" + path + ":" + offset + ":" + cacheSize);
+        sendRequest("read:" + path + ":" + offset + ":" + CacheManager.getCacheSize(), connection);
         int resp = Integer.parseInt(JNFSInputStream.readLine(i));
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);
