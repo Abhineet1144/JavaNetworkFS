@@ -28,7 +28,7 @@ public class ReadOperation extends Operation {
 
     @Override
     public String getDetail() {
-        return path + " (offset=" + offset + ", size=" + size + ")";
+        return path;
     }
 
     @Override
@@ -43,8 +43,6 @@ public class ReadOperation extends Operation {
 
             if (isBigJump) {
                 if (cacheBlock != null) {
-                    System.out.println("[CLIENT] Cache evict after read jump path=" + path + ", previousOffset="
-                            + prevOffset + ", currentOffset=" + offset);
                     CacheManager.evict(path);
                     cacheBlock = null;
                 }
@@ -76,25 +74,21 @@ public class ReadOperation extends Operation {
 
                     if (cacheEnd >= targetFileSize) {
                         bytesRead = cachedBytes;
-                        System.out.println("[CLIENT] Cache served EOF path=" + path + ", offset=" + offset
+                        System.out.println("[CLIENT] Cache hit path=" + path + ", offset=" + offset
                                 + ", bytes=" + cachedBytes);
                         return;
                     }
 
-                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", cachedBytes=" + cachedBytes
-                            + ", missingBytes=" + missingBytes);
                     byte[] missingData = getData(path, cacheEnd, missingBytes, connection);
                     int missingLen = Math.min(missingData.length, missingBytes);
                     buf.put(cachedBytes, missingData, 0, missingLen);
 
-                    byte[] existing = cacheBlock.getData();
-                    byte[] merged = new byte[existing.length + missingLen];
-                    System.arraycopy(existing, 0, merged, 0, existing.length);
-                    System.arraycopy(missingData, 0, merged, existing.length, missingLen);
-                    CacheManager.allocate(path, cacheStart, new CacheBlock(merged, cacheStart));
+                    CacheManager.allocate(path, cacheStart,
+                            mergeForward(cacheBlock.getData(), cacheStart, missingData, missingLen));
 
                     bytesRead = cachedBytes + missingLen;
-                    System.out.println("[CLIENT] Cache extended forward path=" + path + ", bytesRead=" + bytesRead);
+                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", offset=" + offset
+                            + ", cachedBytes=" + cachedBytes + ", fetchedBytes=" + missingLen);
                     return;
                 }
 
@@ -102,28 +96,24 @@ public class ReadOperation extends Operation {
                     int missingBytes = (int) (cacheStart - offset);
                     int cachedBytes = (int) (requestEnd - cacheStart);
 
-                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", missingBytes=" + missingBytes
-                            + ", cachedBytes=" + cachedBytes);
                     byte[] missingData = getData(path, offset, missingBytes, connection);
                     int missingLen = Math.min(missingData.length, missingBytes);
                     buf.put(0, missingData, 0, missingLen);
                     buf.put(missingLen, cacheBlock.getData(), 0, cachedBytes);
 
-                    byte[] existing = cacheBlock.getData();
-                    byte[] merged = new byte[missingLen + existing.length];
-                    System.arraycopy(missingData, 0, merged, 0, missingLen);
-                    System.arraycopy(existing, 0, merged, missingLen, existing.length);
-                    CacheManager.allocate(path, offset, new CacheBlock(merged, offset));
+                    CacheManager.allocate(path, offset,
+                            mergeBackward(missingData, missingLen, cacheBlock.getData(), cacheStart));
 
                     bytesRead = missingLen + cachedBytes;
-                    System.out.println("[CLIENT] Cache extended backward path=" + path + ", bytesRead=" + bytesRead);
+                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", offset=" + offset
+                            + ", cachedBytes=" + cachedBytes + ", fetchedBytes=" + missingLen);
                     return;
                 }
             }
 
             int fetchSize = Math.max((int) size, CacheManager.getCacheSize());
-            System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size
-                    + ", prefetch=" + CacheManager.getCacheSize() + ", fetch=" + fetchSize);
+            System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset
+                    + ", size=" + size + ", fetch=" + fetchSize);
             byte[] data = getData(path, offset, fetchSize, connection);
             int copyLen = Math.min((int) size, data.length);
             buf.put(0, data, 0, copyLen);
@@ -131,12 +121,9 @@ public class ReadOperation extends Operation {
             if (!isBigJump) {
                 CacheBlock block = new CacheBlock(data, offset);
                 CacheManager.allocate(path, offset, block);
-                System.out.println("[CLIENT] Cached read block path=" + path + ", offset=" + offset
-                        + ", bytes=" + data.length);
             }
 
             bytesRead = copyLen;
-            System.out.println("[CLIENT] Remote read complete path=" + path + ", bytesRead=" + bytesRead);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -145,13 +132,56 @@ public class ReadOperation extends Operation {
     public byte[] getData(String path, long offset, int cacheSize, ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
 
-        System.out.println("[CLIENT] Fetch missing cache segment path=" + path + ", offset=" + offset
-                + ", bytes=" + cacheSize);
-        sendRequest("read:" + path + ":" + offset + ":" + CacheManager.getCacheSize(), connection);
+        sendRequest("read:" + path + ":" + offset + ":" + cacheSize, connection);
         int resp = Integer.parseInt(JNFSInputStream.readLine(i));
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);
         return data;
+    }
+
+    private static CacheBlock mergeForward(byte[] existing, long existingOffset, byte[] suffix, int suffixLength) {
+        int maxCacheBytes = CacheManager.getCacheSize();
+        int mergedLength = existing.length + suffixLength;
+        int keptLength = Math.min(maxCacheBytes, mergedLength);
+        byte[] merged = new byte[keptLength];
+        int dropped = mergedLength - keptLength;
+        long newOffset = existingOffset + dropped;
+
+        copyWindow(existing, 0, existing.length, suffix, suffixLength, dropped, merged);
+        return new CacheBlock(merged, newOffset);
+    }
+
+    private static CacheBlock mergeBackward(byte[] prefix, int prefixLength, byte[] existing, long existingOffset) {
+        int maxCacheBytes = CacheManager.getCacheSize();
+        int mergedLength = prefixLength + existing.length;
+        int keptLength = Math.min(maxCacheBytes, mergedLength);
+        byte[] merged = new byte[keptLength];
+
+        copyWindow(prefix, 0, prefixLength, existing, existing.length, 0, merged);
+        return new CacheBlock(merged, existingOffset - prefixLength);
+    }
+
+    private static void copyWindow(
+            byte[] first,
+            int firstOffset,
+            int firstLength,
+            byte[] second,
+            int secondLength,
+            int skip,
+            byte[] target) {
+        int targetOffset = 0;
+        int firstCopyStart = Math.min(firstLength, skip);
+        int firstCopyLength = firstLength - firstCopyStart;
+        if (firstCopyLength > 0) {
+            System.arraycopy(first, firstOffset + firstCopyStart, target, targetOffset, firstCopyLength);
+            targetOffset += firstCopyLength;
+        }
+
+        int secondSkip = Math.max(0, skip - firstLength);
+        int secondCopyLength = Math.min(secondLength - secondSkip, target.length - targetOffset);
+        if (secondCopyLength > 0) {
+            System.arraycopy(second, secondSkip, target, targetOffset, secondCopyLength);
+        }
     }
 
     public int getBytesRead() {

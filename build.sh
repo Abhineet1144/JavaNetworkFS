@@ -37,4 +37,9 @@ while IFS= read -r -d '' resource; do
     cp -f "$resource" "$OUT_DIR/$rel"
 done < <(find "$SRC_DIR" -type f -name '*.css' -print0)
 
+if [[ -d "$ROOT_DIR/assets" ]]; then
+    mkdir -p "$OUT_DIR/assets"
+    cp -R "$ROOT_DIR/assets/." "$OUT_DIR/assets/"
+fi
+
 echo "Build successful. Classes in: $OUT_DIR"

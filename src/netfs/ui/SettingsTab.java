@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.UnaryOperator;
 
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -11,10 +12,13 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 /**
  * Central place for advanced Host and Mount tuning values used by the action tabs.
@@ -22,9 +26,8 @@ import javafx.scene.layout.VBox;
 public class SettingsTab {
 
     private static final long BYTES_PER_MB = 1024L * 1024L;
-
-    private final VBox content;
-    private final ScrollPane scrollPane;
+    private VBox content;
+    private ScrollPane scrollPane;
 
     private final TextField hostMaxThreadsField = new TextField(
             AppSettings.getString(AppSettings.HOST_MAX_THREADS, "111"));
@@ -36,23 +39,44 @@ public class SettingsTab {
             AppSettings.getString(AppSettings.MOUNT_MAX_FILE_CACHE, "30"));
     private final TextField mountMaxServerConnectorField = new TextField(
             AppSettings.getString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, "3"));
+    private final CheckBox hostStartOnLaunchCheck = new CheckBox();
     private final CheckBox closeToTrayCheck = new CheckBox();
     private final CheckBox startOnLoginCheck = new CheckBox();
     private final CheckBox startMinimizedCheck = new CheckBox();
+    private final Label hostMaxThreadsNote = restartNote("Restart host to apply changes");
+    private final Label hostMaxSizeNote = restartNote("Restart host to apply changes");
+    private final Label mountCacheSizeNote = restartNote("Remount to apply changes");
+    private final Label mountMaxFileCacheNote = restartNote("Remount to apply changes");
+    private final Label mountMaxServerConnectorNote = restartNote("Remount to apply changes");
+
+    private String savedHostMaxThreads;
+    private String savedHostMaxSize;
+    private String savedMountCacheSize;
+    private String savedMountMaxFileCache;
+    private String savedMountMaxServerConnector;
+    private boolean hostActive;
+    private boolean mountActive;
 
     public SettingsTab() {
+        hostStartOnLaunchCheck.setSelected(AppSettings.getBoolean(AppSettings.HOST_START_ON_LAUNCH, false));
         closeToTrayCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_CLOSE_TO_TRAY, true));
         startOnLoginCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_START_ON_LOGIN, false));
         startMinimizedCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_START_MINIMIZED, false));
-        content = build();
-        scrollPane = new ScrollPane(content);
-        scrollPane.getStyleClass().add("settings-scroll");
-        scrollPane.setFitToWidth(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        installNumericInputFilters();
+        syncSavedSettingsSnapshot();
+        installRestartNoticeListeners();
+        refreshRestartNotices();
     }
 
     public ScrollPane getContent() {
+        if (scrollPane == null) {
+            content = build();
+            scrollPane = new ScrollPane(content);
+            scrollPane.getStyleClass().add("settings-scroll");
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        }
         return scrollPane;
     }
 
@@ -88,16 +112,33 @@ public class SettingsTab {
         return startMinimizedCheck.isSelected();
     }
 
+    boolean isHostStartOnLaunchEnabled() {
+        return hostStartOnLaunchCheck.isSelected();
+    }
+
+    void setHostActive(boolean active) {
+        hostActive = active;
+        refreshRestartNotices();
+    }
+
+    void setMountActive(boolean active) {
+        mountActive = active;
+        refreshRestartNotices();
+    }
+
     void saveSettings() {
         AppSettings.setString(AppSettings.HOST_MAX_THREADS, hostMaxThreadsField.getText().trim());
         AppSettings.setString(AppSettings.HOST_MAX_SIZE, hostMaxSizeField.getText().trim());
         AppSettings.setString(AppSettings.MOUNT_CACHE_SIZE, mountCacheSizeField.getText().trim());
         AppSettings.setString(AppSettings.MOUNT_MAX_FILE_CACHE, mountMaxFileCacheField.getText().trim());
         AppSettings.setString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, mountMaxServerConnectorField.getText().trim());
+        AppSettings.setBoolean(AppSettings.HOST_START_ON_LAUNCH, hostStartOnLaunchCheck.isSelected());
         AppSettings.setBoolean(AppSettings.APP_CLOSE_TO_TRAY, closeToTrayCheck.isSelected());
         AppSettings.setBoolean(AppSettings.APP_START_ON_LOGIN, startOnLoginCheck.isSelected());
         AppSettings.setBoolean(AppSettings.APP_START_MINIMIZED, startMinimizedCheck.isSelected());
         updateAutostart(startOnLoginCheck.isSelected());
+        syncSavedSettingsSnapshot();
+        refreshRestartNotices();
     }
 
     private VBox build() {
@@ -108,18 +149,23 @@ public class SettingsTab {
         hostHeading.getStyleClass().add("settings-section-title");
 
         VBox hostForm = settingsGroup(
-                settingRow("Max Threads", "Maximum number of server handler threads.", hostMaxThreadsField),
-                settingRow("Max Cache Size", "Maximum host-side cache size.", hostMaxSizeField, "MB"));
+                settingRow("Start Server on Launch", "Start hosting automatically when NetFS opens.",
+                        hostStartOnLaunchCheck),
+                settingRow("Max Threads", "Maximum number of server handler threads.", hostMaxThreadsField,
+                        hostMaxThreadsNote),
+                settingRow("Max Cache Size", "Maximum host-side cache size.", hostMaxSizeField, "MB",
+                        hostMaxSizeNote));
 
         Label mountHeading = new Label("Mount");
         mountHeading.getStyleClass().add("settings-section-title");
 
         VBox mountForm = settingsGroup(
                 settingRow("Cache Size", "Read cache block size used by the mounted client.",
-                        mountCacheSizeField, "MB"),
-                settingRow("Max File Cache", "Maximum number of files kept in the client cache.", mountMaxFileCacheField),
+                        mountCacheSizeField, "MB", mountCacheSizeNote),
+                settingRow("Max File Cache", "Maximum number of files kept in the client cache.",
+                        mountMaxFileCacheField, mountMaxFileCacheNote),
                 settingRow("Max Server Connections", "Number of worker connections opened to the host.",
-                        mountMaxServerConnectorField));
+                        mountMaxServerConnectorField, mountMaxServerConnectorNote));
 
         Label appHeading = new Label("App");
         appHeading.getStyleClass().add("settings-section-title");
@@ -130,8 +176,17 @@ public class SettingsTab {
                 settingRow("Start on Login", "Launch NetFS automatically after signing in.", startOnLoginCheck),
                 settingRow("Start Minimized", "Open NetFS in the tray when launched on login.", startMinimizedCheck));
 
-        VBox box = new VBox(14, heading, appHeading, appForm, hostHeading, hostForm, mountHeading, mountForm);
+        Label aboutHeading = new Label("About");
+        aboutHeading.getStyleClass().add("settings-section-title");
+
+        VBox aboutForm = settingsGroup(
+                infoRow("Version", "0.0.1"),
+                infoRow("Authors", "Tejas, Abhineet"));
+
+        VBox box = new VBox(14, heading, appHeading, appForm, hostHeading, hostForm, mountHeading, mountForm,
+                aboutHeading, aboutForm);
         box.setPadding(new Insets(20, 24, 20, 24));
+        refreshRestartNotices();
         return box;
     }
 
@@ -142,10 +197,18 @@ public class SettingsTab {
     }
 
     private static BorderPane settingRow(String title, String description, TextField field) {
-        return settingRow(title, description, field, null);
+        return settingRow(title, description, field, null, null);
+    }
+
+    private static BorderPane settingRow(String title, String description, TextField field, Label note) {
+        return settingRow(title, description, field, null, note);
     }
 
     private static BorderPane settingRow(String title, String description, TextField field, String unit) {
+        return settingRow(title, description, field, unit, null);
+    }
+
+    private static BorderPane settingRow(String title, String description, TextField field, String unit, Label note) {
         field.getStyleClass().add("settings-input");
         field.setPrefWidth(92);
         field.setMaxWidth(92);
@@ -157,10 +220,14 @@ public class SettingsTab {
             unitLabel.getStyleClass().add("setting-unit");
             control.getChildren().add(unitLabel);
         }
-        return settingRow(title, description, control);
+        return settingRow(title, description, control, note);
     }
 
     private static BorderPane settingRow(String title, String description, Node control) {
+        return settingRow(title, description, control, null);
+    }
+
+    private static BorderPane settingRow(String title, String description, Node control, Label note) {
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("setting-title");
 
@@ -168,7 +235,13 @@ public class SettingsTab {
         descriptionLabel.getStyleClass().add("setting-description");
         descriptionLabel.setWrapText(true);
 
-        VBox text = new VBox(3, titleLabel, descriptionLabel);
+        HBox titleRow = new HBox(6, titleLabel);
+        titleRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        if (note != null) {
+            titleRow.getChildren().add(note);
+        }
+
+        VBox text = new VBox(3, titleRow, descriptionLabel);
         BorderPane row = new BorderPane();
         row.getStyleClass().add("setting-row");
         row.setLeft(text);
@@ -178,6 +251,97 @@ public class SettingsTab {
         BorderPane.setMargin(control, new Insets(0, 0, 0, 24));
         BorderPane.setMargin(text, new Insets(0, 16, 0, 0));
         BorderPane.setAlignment(control, javafx.geometry.Pos.CENTER_RIGHT);
+        VBox.setVgrow(row, Priority.NEVER);
+        return row;
+    }
+
+    private static Label restartNote(String text) {
+        Label label = new Label("i");
+        label.getStyleClass().add("setting-restart-note");
+        Tooltip tooltip = new Tooltip(text);
+        tooltip.getStyleClass().add("setting-restart-tooltip");
+        tooltip.setShowDelay(Duration.ZERO);
+        tooltip.setShowDuration(Duration.INDEFINITE);
+        tooltip.setHideDelay(Duration.millis(80));
+        Tooltip.install(label, tooltip);
+        label.setVisible(false);
+        label.setManaged(false);
+        return label;
+    }
+
+    private void installRestartNoticeListeners() {
+        hostMaxThreadsField.textProperty().addListener((obs, oldValue, newValue) -> refreshRestartNotices());
+        hostMaxSizeField.textProperty().addListener((obs, oldValue, newValue) -> refreshRestartNotices());
+        mountCacheSizeField.textProperty().addListener((obs, oldValue, newValue) -> refreshRestartNotices());
+        mountMaxFileCacheField.textProperty().addListener((obs, oldValue, newValue) -> refreshRestartNotices());
+        mountMaxServerConnectorField.textProperty().addListener((obs, oldValue, newValue) -> refreshRestartNotices());
+    }
+
+    private void installNumericInputFilters() {
+        installNumericInputFilter(hostMaxThreadsField, "111");
+        installNumericInputFilter(hostMaxSizeField, "1");
+        installNumericInputFilter(mountCacheSizeField, "1");
+        installNumericInputFilter(mountMaxFileCacheField, "30");
+        installNumericInputFilter(mountMaxServerConnectorField, "3");
+    }
+
+    private static void installNumericInputFilter(TextField field, String fallback) {
+        String initial = field.getText() == null ? "" : field.getText().trim();
+        field.setText(initial.matches("\\d+") ? initial : fallback);
+        UnaryOperator<TextFormatter.Change> filter = change ->
+                change.getControlNewText().matches("\\d*") ? change : null;
+        field.setTextFormatter(new TextFormatter<>(filter));
+        field.textProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue != null && !newValue.matches("\\d*")) {
+                field.setText(newValue.replaceAll("\\D", ""));
+            }
+        });
+    }
+
+    private void syncSavedSettingsSnapshot() {
+        savedHostMaxThreads = normalized(hostMaxThreadsField);
+        savedHostMaxSize = normalized(hostMaxSizeField);
+        savedMountCacheSize = normalized(mountCacheSizeField);
+        savedMountMaxFileCache = normalized(mountMaxFileCacheField);
+        savedMountMaxServerConnector = normalized(mountMaxServerConnectorField);
+    }
+
+    private void refreshRestartNotices() {
+        setVisibleManaged(hostMaxThreadsNote,
+                hostActive && !normalized(hostMaxThreadsField).equals(savedHostMaxThreads));
+        setVisibleManaged(hostMaxSizeNote,
+                hostActive && !normalized(hostMaxSizeField).equals(savedHostMaxSize));
+        setVisibleManaged(mountCacheSizeNote,
+                mountActive && !normalized(mountCacheSizeField).equals(savedMountCacheSize));
+        setVisibleManaged(mountMaxFileCacheNote,
+                mountActive && !normalized(mountMaxFileCacheField).equals(savedMountMaxFileCache));
+        setVisibleManaged(mountMaxServerConnectorNote,
+                mountActive && !normalized(mountMaxServerConnectorField).equals(savedMountMaxServerConnector));
+    }
+
+    private static void setVisibleManaged(Node node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
+    }
+
+    private static String normalized(TextField field) {
+        return field.getText().trim();
+    }
+
+    private static BorderPane infoRow(String title, String value) {
+        Label titleLabel = new Label(title);
+        titleLabel.getStyleClass().add("setting-title");
+
+        Label valueLabel = new Label(value);
+        valueLabel.getStyleClass().add("setting-value");
+
+        BorderPane row = new BorderPane();
+        row.getStyleClass().add("setting-row");
+        row.setLeft(titleLabel);
+        row.setRight(valueLabel);
+
+        BorderPane.setMargin(valueLabel, new Insets(0, 0, 0, 24));
+        BorderPane.setAlignment(valueLabel, javafx.geometry.Pos.CENTER_RIGHT);
         VBox.setVgrow(row, Priority.NEVER);
         return row;
     }
@@ -240,7 +404,9 @@ public class SettingsTab {
                 "Name=NetFS",
                 "Comment=Java Network FS",
                 "Exec=netfs-ui",
+                "Icon=netfs",
                 "Terminal=false",
+                "StartupWMClass=netfs.ui.NetFSApp",
                 "X-GNOME-Autostart-enabled=true",
                 "");
     }

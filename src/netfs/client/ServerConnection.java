@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicLong;
 
 import netfs.operations.Operation;
+import netfs.operations.OperationType;
 import netfs.operations.ReadOperation;
 import netfs.operations.WriteOperation;
 import netfs.state.OperationLog;
@@ -14,6 +16,9 @@ import netfs.state.OperationSource;
 import netfs.state.TransferStats;
 
 public class ServerConnection implements Runnable {
+    private static final long TRANSFER_EMIT_INTERVAL_NANOS = 250_000_000L;
+    private static final AtomicLong LAST_TRANSFER_EMIT_NANOS = new AtomicLong();
+
     private Socket socket;
     private boolean inUse;
     private int id;
@@ -33,7 +38,10 @@ public class ServerConnection implements Runnable {
             System.out.println("[CLIENT] Server connection " + id + " connected");
             while (!Thread.currentThread().isInterrupted()) {
                 Operation operation = ConnectionPool.getOperationQueue().take();
-                System.out.println("[CLIENT] Worker " + id + " executing operation: " + operation.getOperationType());
+                boolean verboseOperation = operation.getOperationType() != OperationType.READ;
+                if (verboseOperation) {
+                    System.out.println("[CLIENT] Worker " + id + " executing operation: " + operation.getOperationType());
+                }
                 OperationLogEntry logEntry = OperationLog.start(OperationSource.MOUNT,
                         operation.getOperationType().name(), operation.getDetail());
                 long startNanos = System.nanoTime();
@@ -47,7 +55,9 @@ public class ServerConnection implements Runnable {
                     emitOpLog(operation, "FAILED", startNanos, e.getMessage());
                     throw e;
                 } finally {
-                    System.out.println("[CLIENT] Worker " + id + " completed operation: " + operation.getOperationType());
+                    if (verboseOperation) {
+                        System.out.println("[CLIENT] Worker " + id + " completed operation: " + operation.getOperationType());
+                    }
                     operation.complete();
                 }
             }
@@ -95,8 +105,13 @@ public class ServerConnection implements Runnable {
         } else {
             TransferStats.addWriteBytes(OperationSource.MOUNT, bytes);
         }
-        System.out.println("##XFER##|" + TransferStats.getReadBytes(OperationSource.MOUNT) + "|"
-                + TransferStats.getWriteBytes(OperationSource.MOUNT));
+        long now = System.nanoTime();
+        long previous = LAST_TRANSFER_EMIT_NANOS.get();
+        if (now - previous >= TRANSFER_EMIT_INTERVAL_NANOS
+                && LAST_TRANSFER_EMIT_NANOS.compareAndSet(previous, now)) {
+            System.out.println("##XFER##|" + TransferStats.getReadBytes(OperationSource.MOUNT) + "|"
+                    + TransferStats.getWriteBytes(OperationSource.MOUNT));
+        }
     }
 
     private static String sanitize(String value) {

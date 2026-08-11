@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -17,6 +18,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -65,6 +67,7 @@ public class MountTab {
     public MountTab(LogConsole logConsole, SettingsTab settingsTab) {
         this.logConsole = logConsole;
         this.settingsTab = settingsTab;
+        installNumericInputFilter(portField, "10002");
         mountOptionsCheck.setSelected(AppSettings.getBoolean(AppSettings.MOUNT_OPTIONS, true));
         this.content = build();
         stopButton.setDisable(true);
@@ -217,6 +220,7 @@ public class MountTab {
                 mountProcess = processBuilder.start();
 
                 Platform.runLater(() -> {
+                    settingsTab.setMountActive(true);
                     setRunningStatus("Mounted at " + mountPoint);
                     stopButton.setDisable(false);
                 });
@@ -231,6 +235,7 @@ public class MountTab {
             } finally {
                 mountProcess = null;
                 Platform.runLater(() -> {
+                    settingsTab.setMountActive(false);
                     startButton.setDisable(false);
                     testButton.setDisable(false);
                     stopButton.setDisable(true);
@@ -365,6 +370,7 @@ public class MountTab {
         } catch (Throwable ex) {
             showError("Unmount failed: " + describe(ex));
         } finally {
+            settingsTab.setMountActive(false);
             stopButton.setDisable(true);
             startButton.setDisable(false);
             testButton.setDisable(false);
@@ -469,5 +475,18 @@ public class MountTab {
         icon.setContent(path);
         icon.getStyleClass().add("button-icon");
         return icon;
+    }
+
+    private static void installNumericInputFilter(TextField field, String fallback) {
+        String trimmed = field.getText() == null ? "" : field.getText().trim();
+        field.setText(trimmed.matches("\\d+") ? trimmed : fallback);
+        UnaryOperator<TextFormatter.Change> filter = change ->
+                change.getControlNewText().matches("\\d*") ? change : null;
+        field.setTextFormatter(new TextFormatter<>(filter));
+        field.textProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue != null && !newValue.matches("\\d*")) {
+                field.setText(newValue.replaceAll("\\D", ""));
+            }
+        });
     }
 }

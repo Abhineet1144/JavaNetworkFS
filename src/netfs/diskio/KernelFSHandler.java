@@ -222,7 +222,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("[CLIENT] Read request path=" + path + ", offset=" + offset + ", size=" + size);
         Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
         synchronized (lock) {
             try {

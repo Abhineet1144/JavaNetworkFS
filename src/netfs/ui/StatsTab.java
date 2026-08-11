@@ -6,19 +6,23 @@ import java.util.List;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
-
 import netfs.state.OperationLog;
 import netfs.state.OperationLogEntry;
 import netfs.state.OperationSource;
@@ -31,13 +35,16 @@ import netfs.state.TransferStats;
  */
 public class StatsTab {
 
+    private static final int MAX_VISIBLE_OPERATIONS = 500;
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm:ss");
 
-    private final VBox operationRows = new VBox();
-    private final ScrollPane operationScroll = new ScrollPane(operationRows);
+    private final ObservableList<OperationLogEntry> operationItems = FXCollections.observableArrayList();
+    private final TableView<OperationLogEntry> operationsTable = new TableView<>(operationItems);
     private final CheckBox persistCheck = new CheckBox("Persist operations log");
     private final Label countLabel = new Label("0 operations");
+    private final Timeline timeline;
     private long latestRenderedId = -1;
+    private String latestRenderedSignature = "";
     private boolean followLatest = true;
 
     private final Label hostReadTotalLabel = new Label("0 B");
@@ -59,18 +66,33 @@ public class StatsTab {
 
     public StatsTab() {
         content = build();
-        startTicker();
+        timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            OperationLog.sweep();
+            refresh();
+            refreshTransferStats();
+        }));
+        timeline.setCycleCount(Timeline.INDEFINITE);
     }
 
     public VBox getContent() {
         return content;
     }
 
+    void onShown() {
+        refresh();
+        refreshTransferStats();
+        timeline.play();
+    }
+
+    void onHidden() {
+        timeline.stop();
+    }
+
     private VBox build() {
         Label heading = new Label("Operations");
         heading.getStyleClass().add("page-title");
 
-        VBox operationsTable = buildOperationsTable();
+        buildOperationsTable();
         VBox.setVgrow(operationsTable, Priority.ALWAYS);
 
         persistCheck.setSelected(AppSettings.getBoolean(AppSettings.STATS_PERSIST, false));
@@ -96,28 +118,76 @@ public class StatsTab {
         return box;
     }
 
-    private VBox buildOperationsTable() {
-        GridPane header = new GridPane();
-        header.getStyleClass().add("operations-header");
-        addOperationHeader(header, "Time", 0, "operations-top-left");
-        addOperationHeader(header, "Mode", 1);
-        addOperationHeader(header, "Operation", 2);
-        addOperationHeader(header, "Detail", 3);
-        addOperationHeader(header, "Status", 4);
-        addOperationHeader(header, "Info", 5, "operations-top-right");
+    private void buildOperationsTable() {
+        operationsTable.getStyleClass().add("operations-table-view");
+        operationsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        operationsTable.setPlaceholder(new Label("No operations yet"));
+        operationsTable.setFixedCellSize(38);
 
-        operationRows.getStyleClass().add("operations-rows");
-        operationScroll.getStyleClass().add("operations-scroll");
-        operationScroll.setFitToWidth(true);
-        operationScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        operationScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        operationScroll.vvalueProperty().addListener((obs, oldValue, newValue) ->
-                followLatest = newValue.doubleValue() <= 0.02);
-        VBox.setVgrow(operationScroll, Priority.ALWAYS);
+        operationsTable.getColumns().clear();
+        operationsTable.getColumns().add(column("Time",
+                entry -> TIME_FORMAT.format(new Date(entry.getStartTime())), 0.12, null));
+        operationsTable.getColumns().add(column("Mode", entry -> entry.getSource().name(), 0.10, null));
+        operationsTable.getColumns().add(column("Operation", OperationLogEntry::getOperation, 0.14, null));
+        operationsTable.getColumns().add(column("Detail", OperationLogEntry::getDetail, 0.32, "operations-detail-cell"));
+        operationsTable.getColumns().add(column("Status", entry -> entry.getStatus().name(), 0.14,
+                "operations-status-cell"));
+        operationsTable.getColumns().add(column("Info", StatsTab::infoText, 0.18, "operations-info-cell"));
 
-        VBox tableBox = new VBox(header, operationScroll);
-        tableBox.getStyleClass().add("operations-table");
-        return tableBox;
+        operationsTable.setRowFactory(table -> {
+            TableRow<OperationLogEntry> row = new TableRow<>() {
+                @Override
+                protected void updateItem(OperationLogEntry entry, boolean empty) {
+                    super.updateItem(entry, empty);
+                    getStyleClass().removeAll("operations-row-latest", "operations-row-running",
+                            "operations-row-completed", "operations-row-failed");
+                    if (empty || entry == null) {
+                        return;
+                    }
+                    if (entry.getId() == latestRenderedId) {
+                        getStyleClass().add("operations-row-latest");
+                    }
+                    getStyleClass().add(statusRowStyle(entry.getStatus()));
+                }
+            };
+            row.indexProperty().addListener((obs, oldValue, newValue) -> followLatest =
+                    newValue.intValue() >= Math.max(0, operationItems.size() - 2));
+            return row;
+        });
+    }
+
+    private static TableColumn<OperationLogEntry, String> column(
+            String title,
+            java.util.function.Function<OperationLogEntry, String> valueFactory,
+            double widthRatio,
+            String cellStyleClass) {
+        TableColumn<OperationLogEntry, String> column = new TableColumn<>(title);
+        column.setCellValueFactory(data -> new ReadOnlyStringWrapper(valueFactory.apply(data.getValue())));
+        column.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+                getStyleClass().removeAll("operations-detail-cell", "operations-status-cell", "operations-info-cell",
+                        "status-cell-running", "status-cell-completed", "status-cell-failed");
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setText(null);
+                    return;
+                }
+                setText(text);
+                if (cellStyleClass != null) {
+                    getStyleClass().add(cellStyleClass);
+                }
+                if ("operations-status-cell".equals(cellStyleClass) || "operations-info-cell".equals(cellStyleClass)) {
+                    getStyleClass().add(statusCellStyle(getTableRow().getItem().getStatus()));
+                }
+            }
+        });
+        column.setReorderable(false);
+        column.setResizable(true);
+        column.setSortable(false);
+        column.setMaxWidth(Double.MAX_VALUE);
+        column.setPrefWidth(1000 * widthRatio);
+        return column;
     }
 
     private VBox buildTransferSection() {
@@ -146,8 +216,7 @@ public class StatsTab {
         addTransferCell(grid, mountWriteTotalLabel, 3, 2, "transfer-cell");
         addTransferCell(grid, mountWriteSpeedLabel, 4, 2, "transfer-cell", "transfer-bottom-right");
 
-        VBox box = new VBox(10, heading, grid);
-        return box;
+        return new VBox(10, heading, grid);
     }
 
     private static void addTransferCell(GridPane grid, Label label, int column, int row, String... styleClasses) {
@@ -158,34 +227,40 @@ public class StatsTab {
         GridPane.setHgrow(label, Priority.ALWAYS);
     }
 
-    private void startTicker() {
-        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-            OperationLog.sweep();
-            refresh();
-            refreshTransferStats();
-        }));
-        timeline.setCycleCount(Timeline.INDEFINITE);
-        timeline.play();
-    }
-
     private void refresh() {
         List<OperationLogEntry> snapshot = OperationLog.snapshot();
-        boolean shouldFollowLatest = followLatest || latestRenderedId < 0;
-
-        operationRows.getChildren().clear();
-        for (int i = snapshot.size() - 1, rowIndex = 0; i >= 0; i--, rowIndex++) {
-            OperationLogEntry entry = snapshot.get(i);
-            operationRows.getChildren().add(operationRow(entry, rowIndex % 2 == 1,
-                    i == snapshot.size() - 1, i == 0));
+        int start = Math.max(0, snapshot.size() - MAX_VISIBLE_OPERATIONS);
+        List<OperationLogEntry> visible = snapshot.subList(start, snapshot.size());
+        String signature = operationSignature(visible);
+        if (signature.equals(latestRenderedSignature)) {
+            countLabel.setText(visible.size() + " operation" + (visible.size() == 1 ? "" : "s"));
+            return;
         }
-        if (!snapshot.isEmpty()) {
-            latestRenderedId = snapshot.get(snapshot.size() - 1).getId();
+
+        boolean shouldFollowLatest = followLatest || latestRenderedId < 0;
+        operationItems.setAll(visible);
+        latestRenderedSignature = signature;
+        if (!visible.isEmpty()) {
+            latestRenderedId = visible.get(visible.size() - 1).getId();
             if (shouldFollowLatest) {
-                operationScroll.setVvalue(0.0);
+                operationsTable.scrollTo(operationItems.size() - 1);
                 followLatest = true;
             }
         }
-        countLabel.setText(snapshot.size() + " operation" + (snapshot.size() == 1 ? "" : "s"));
+        countLabel.setText(visible.size() + " operation" + (visible.size() == 1 ? "" : "s"));
+    }
+
+    private static String operationSignature(List<OperationLogEntry> entries) {
+        StringBuilder signature = new StringBuilder(entries.size() * 16);
+        for (OperationLogEntry entry : entries) {
+            signature.append(entry.getId())
+                    .append(':')
+                    .append(entry.getStatus())
+                    .append(':')
+                    .append(entry.getEndTime())
+                    .append(';');
+        }
+        return signature.toString();
     }
 
     /** Pulls the latest cumulative totals from {@link TransferStats} and derives
@@ -237,69 +312,17 @@ public class StatsTab {
         return String.format("%.1f GB", gb);
     }
 
-    private GridPane operationRow(OperationLogEntry entry, boolean odd, boolean latest, boolean bottomRow) {
-        GridPane row = new GridPane();
-        row.getStyleClass().add("operations-row");
-        if (odd) {
-            row.getStyleClass().add("operations-row-odd");
+    private static String statusRowStyle(OperationStatus status) {
+        if (status == OperationStatus.RUNNING) {
+            return "operations-row-running";
         }
-        if (latest) {
-            row.getStyleClass().add("operations-row-latest");
+        if (status == OperationStatus.FAILED) {
+            return "operations-row-failed";
         }
-        if (bottomRow) {
-            row.getStyleClass().add("operations-row-bottom");
-        }
-        addOperationCell(row, TIME_FORMAT.format(new Date(entry.getStartTime())), 0,
-                bottomRow ? "operations-bottom-left" : null);
-        addOperationCell(row, entry.getSource().name(), 1);
-        addOperationCell(row, entry.getOperation(), 2);
-        addOperationCell(row, entry.getDetail(), 3, "operations-detail-cell");
-        addOperationCell(row, entry.getStatus().name(), 4, statusStyle(entry.getStatus()));
-        addOperationCell(row, infoText(entry), 5, bottomRow ? "operations-bottom-right" : null);
-        return row;
+        return "operations-row-completed";
     }
 
-    private static void addOperationHeader(GridPane row, String text, int column, String... styleClasses) {
-        Label label = new Label(text);
-        label.getStyleClass().add("operations-cell");
-        label.getStyleClass().add("operations-header-cell");
-        label.getStyleClass().addAll(styleClasses);
-        addOperationNode(row, label, column);
-    }
-
-    private static void addOperationCell(GridPane row, String text, int column, String... styleClasses) {
-        Label label = new Label(text);
-        label.getStyleClass().add("operations-cell");
-        for (String styleClass : styleClasses) {
-            if (styleClass != null) {
-                label.getStyleClass().add(styleClass);
-            }
-        }
-        addOperationNode(row, label, column);
-    }
-
-    private static void addOperationNode(GridPane row, Label label, int column) {
-        ensureOperationColumns(row);
-        label.setMaxWidth(Double.MAX_VALUE);
-        label.setWrapText(true);
-        row.add(label, column, 0);
-        GridPane.setHgrow(label, Priority.ALWAYS);
-    }
-
-    private static void ensureOperationColumns(GridPane row) {
-        if (!row.getColumnConstraints().isEmpty()) {
-            return;
-        }
-        double[] widths = {12, 10, 14, 32, 14, 18};
-        for (double width : widths) {
-            ColumnConstraints constraints = new ColumnConstraints();
-            constraints.setPercentWidth(width);
-            constraints.setHgrow(Priority.ALWAYS);
-            row.getColumnConstraints().add(constraints);
-        }
-    }
-
-    private static String statusStyle(OperationStatus status) {
+    private static String statusCellStyle(OperationStatus status) {
         if (status == OperationStatus.RUNNING) {
             return "status-cell-running";
         }

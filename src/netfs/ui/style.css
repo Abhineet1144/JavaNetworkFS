@@ -163,20 +163,23 @@
     -fx-text-fill: -netfs-text;
     -fx-padding: 0;
     -fx-cursor: hand;
+    -fx-label-padding: 0 0 0 8;
+    -fx-alignment: CENTER_LEFT;
 }
 
 .check-box .box {
-    -fx-min-width: 22px;
-    -fx-pref-width: 22px;
-    -fx-max-width: 22px;
+    -fx-min-width: 44px;
+    -fx-pref-width: 44px;
+    -fx-max-width: 44px;
     -fx-min-height: 22px;
     -fx-pref-height: 22px;
     -fx-max-height: 22px;
     -fx-background-color: -netfs-control-bg;
     -fx-border-color: -netfs-control-border;
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
     -fx-border-width: 1;
+    -fx-padding: 2 24 2 2;
 }
 
 .check-box:hover .box {
@@ -186,10 +189,22 @@
 .check-box:selected .box {
     -fx-background-color: -netfs-primary;
     -fx-border-color: -netfs-primary;
+    -fx-padding: 2 2 2 24;
 }
 
 .check-box .mark {
-    -fx-background-color: transparent;
+    -fx-background-color: -netfs-text-soft;
+    -fx-shape: "M 0 8 A 8 8 0 1 1 16 8 A 8 8 0 1 1 0 8";
+    -fx-min-width: 16px;
+    -fx-pref-width: 16px;
+    -fx-max-width: 16px;
+    -fx-min-height: 16px;
+    -fx-pref-height: 16px;
+    -fx-max-height: 16px;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: -netfs-text-inverse;
 }
 
 /* Buttons */
@@ -293,42 +308,85 @@
 
 /* Console */
 .log-console {
-    -fx-control-inner-background: -netfs-console-bg;
     -fx-background-color: -netfs-console-bg;
-    -fx-text-fill: -netfs-text-console;
-    -fx-highlight-fill: -netfs-primary;
-    -fx-font-family: "JetBrains Mono", "Consolas", monospace;
-    -fx-font-size: 12px;
     -fx-border-color: -netfs-control-border;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
     -fx-border-width: 1;
-    -fx-padding: 8 10 8 10;
+    -fx-padding: 8 0 8 0;
 }
 
-.log-console .content {
+.log-console .virtual-flow,
+.log-console .clipped-container,
+.log-console .sheet {
     -fx-background-color: -netfs-console-bg;
 }
 
-.log-console .scroll-pane,
-.log-console .scroll-pane .viewport {
+.log-console .list-cell {
+    -fx-background-color: -netfs-console-bg;
+    -fx-text-fill: -netfs-text-console;
+    -fx-font-family: "JetBrains Mono", "Consolas", monospace;
+    -fx-font-size: 12px;
+    -fx-padding: 1 10 1 10;
+}
+
+.log-console .list-cell:selected {
+    -fx-background-color: -netfs-selected;
+    -fx-text-fill: -netfs-text-strong;
+}
+
+.log-console .log-line {
+    -fx-text-fill: -netfs-text-console;
+    -fx-font-family: "JetBrains Mono", "Noto Sans Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+    -fx-font-size: 12px;
+    -fx-line-spacing: 1px;
+}
+
+.log-console .list-cell:selected .log-line {
+    -fx-text-fill: -netfs-text-strong;
+}
+
+.log-console .corner {
     -fx-background-color: -netfs-console-bg;
 }
 
 .log-console .scroll-bar:vertical,
-.log-console .scroll-bar:horizontal,
-.log-console .scroll-bar .track,
-.log-console .scroll-bar .thumb,
+.log-console .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.log-console .scroll-bar:vertical {
+    -fx-pref-width: 10px;
+}
+
+.log-console .scroll-bar:horizontal {
+    -fx-pref-height: 10px;
+}
+
+.log-console .scroll-bar .track {
+    -fx-background-color: transparent;
+}
+
+.log-console .scroll-bar .thumb {
+    -fx-background-color: -netfs-control-border;
+    -fx-background-radius: 8;
+}
+
+.log-console .scroll-bar .thumb:hover {
+    -fx-background-color: -netfs-control-hover;
+}
+
 .log-console .scroll-bar .increment-button,
-.log-console .scroll-bar .decrement-button,
-.log-console .scroll-bar .increment-arrow,
-.log-console .scroll-bar .decrement-arrow {
-    -fx-opacity: 0;
+.log-console .scroll-bar .decrement-button {
     -fx-padding: 0;
     -fx-pref-width: 0;
     -fx-pref-height: 0;
-    -fx-max-width: 0;
-    -fx-max-height: 0;
+}
+
+.log-console .scroll-bar .increment-arrow,
+.log-console .scroll-bar .decrement-arrow {
+    -fx-padding: 0;
+    -fx-shape: "";
 }
 
 .console-clear-button {
@@ -340,6 +398,16 @@
     -fx-min-height: 30px;
     -fx-pref-height: 30px;
     -fx-max-height: 30px;
+}
+
+.console-toggle {
+    -fx-text-fill: -netfs-text-soft;
+    -fx-font-size: 12px;
+}
+
+.console-empty-state {
+    -fx-text-fill: -netfs-text-muted;
+    -fx-font-size: 13px;
 }
 
 /* Settings */
@@ -420,6 +488,42 @@
     -fx-font-size: 12px;
 }
 
+.setting-restart-note {
+    -fx-background-color: rgba(245, 158, 11, 0.16);
+    -fx-background-radius: 999;
+    -fx-border-color: rgba(245, 158, 11, 0.42);
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-text-fill: #f2b75b;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER;
+    -fx-min-width: 15px;
+    -fx-pref-width: 15px;
+    -fx-max-width: 15px;
+    -fx-min-height: 15px;
+    -fx-pref-height: 15px;
+    -fx-max-height: 15px;
+    -fx-padding: 0;
+}
+
+.tooltip.setting-restart-tooltip {
+    -fx-background-color: -netfs-control-bg;
+    -fx-background-radius: 6;
+    -fx-border-color: -netfs-control-border;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-text-fill: -netfs-text-strong;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 10 8 10;
+}
+
+.setting-value {
+    -fx-text-fill: -netfs-text-soft;
+    -fx-font-size: 12px;
+}
+
 .settings-input {
     -fx-font-family: "JetBrains Mono", "Consolas", monospace;
 }
@@ -437,93 +541,87 @@
 }
 
 /* Operations table */
-.operations-table {
+.operations-table-view {
     -fx-background-color: -netfs-panel-bg;
     -fx-background-radius: 8;
     -fx-border-color: -netfs-border;
     -fx-border-radius: 8;
     -fx-border-width: 1;
+    -fx-padding: 0;
+    -fx-table-cell-border-color: transparent;
 }
 
-.operations-header {
+.operations-table-view .column-header-background {
+    -fx-background-color: -netfs-control-bg;
     -fx-background-radius: 8 8 0 0;
 }
 
-.operations-scroll {
+.operations-table-view .column-header,
+.operations-table-view .filler {
     -fx-background-color: transparent;
-    -fx-background: transparent;
-    -fx-background-radius: 0 0 8 8;
-    -fx-padding: 0;
+    -fx-size: 38px;
 }
 
-.operations-scroll .viewport {
-    -fx-background-color: transparent;
-    -fx-background-radius: 0 0 8 8;
-}
-
-.operations-rows {
-    -fx-background-radius: 0 0 8 8;
-}
-
-.operations-cell {
-    -fx-text-fill: -netfs-text;
-    -fx-padding: 8 12 8 12;
-    -fx-min-height: 38px;
-    -fx-alignment: CENTER;
-    -fx-font-size: 12px;
-}
-
-.operations-detail-cell {
-    -fx-alignment: CENTER_LEFT;
-}
-
-.operations-header-cell {
-    -fx-background-color: -netfs-control-bg;
+.operations-table-view .column-header .label {
     -fx-text-fill: -netfs-text-strong;
-    -fx-font-weight: bold;
     -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER;
 }
 
-.operations-row {
+.operations-table-view .virtual-flow,
+.operations-table-view .clipped-container,
+.operations-table-view .sheet {
     -fx-background-color: -netfs-panel-bg;
 }
 
-.operations-row-odd {
+.operations-table-view .table-row-cell {
+    -fx-background-color: -netfs-panel-bg;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.operations-table-view .table-row-cell:odd {
     -fx-background-color: -netfs-panel-hover;
 }
 
-.operations-row-latest {
+.operations-table-view .table-row-cell:filled:hover,
+.operations-table-view .table-row-cell:filled:selected,
+.operations-table-view .operations-row-latest {
     -fx-background-color: -netfs-selected;
 }
 
-.operations-row-bottom {
-    -fx-background-radius: 0 0 8 8;
+.operations-table-view .table-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -netfs-text;
+    -fx-padding: 0 12 0 12;
+    -fx-alignment: CENTER;
+    -fx-font-size: 12px;
+    -fx-border-color: transparent;
 }
 
-.operations-top-left {
-    -fx-background-radius: 8 0 0 0;
+.operations-table-view .operations-detail-cell {
+    -fx-alignment: CENTER_LEFT;
 }
 
-.operations-top-right {
-    -fx-background-radius: 0 8 0 0;
+.operations-table-view .operations-status-cell,
+.operations-table-view .operations-info-cell {
+    -fx-font-weight: bold;
 }
 
-.operations-bottom-left {
-    -fx-background-radius: 0 0 0 8;
+.operations-table-view .placeholder .label {
+    -fx-text-fill: -netfs-text-muted;
+    -fx-font-size: 13px;
 }
 
-.operations-bottom-right {
-    -fx-background-radius: 0 0 8 0;
-}
-
-.operations-scroll .scroll-bar:vertical,
-.operations-scroll .scroll-bar:horizontal,
-.operations-scroll .scroll-bar .track,
-.operations-scroll .scroll-bar .thumb,
-.operations-scroll .scroll-bar .increment-button,
-.operations-scroll .scroll-bar .decrement-button,
-.operations-scroll .scroll-bar .increment-arrow,
-.operations-scroll .scroll-bar .decrement-arrow {
+.operations-table-view .scroll-bar:vertical,
+.operations-table-view .scroll-bar:horizontal,
+.operations-table-view .scroll-bar .track,
+.operations-table-view .scroll-bar .thumb,
+.operations-table-view .scroll-bar .increment-button,
+.operations-table-view .scroll-bar .decrement-button,
+.operations-table-view .scroll-bar .increment-arrow,
+.operations-table-view .scroll-bar .decrement-arrow {
     -fx-opacity: 0;
     -fx-padding: 0;
     -fx-pref-width: 0;
@@ -534,9 +632,12 @@
 
 /* Transfer table */
 .transfer-table {
-    -fx-background-color: transparent;
+    -fx-background-color: -netfs-panel-bg;
     -fx-background-radius: 8;
-    -fx-padding: 0;
+    -fx-border-color: -netfs-border;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 1;
 }
 
 .transfer-cell {
@@ -578,17 +679,23 @@
     -fx-background-radius: 0 0 8 0;
 }
 
-.status-cell-running {
+.operations-table-view .status-cell-running,
+.operations-table-view .table-row-cell:filled:hover .status-cell-running,
+.operations-table-view .table-row-cell:filled:selected .status-cell-running {
     -fx-text-fill: -netfs-warning;
     -fx-font-weight: bold;
 }
 
-.status-cell-completed {
+.operations-table-view .status-cell-completed,
+.operations-table-view .table-row-cell:filled:hover .status-cell-completed,
+.operations-table-view .table-row-cell:filled:selected .status-cell-completed {
     -fx-text-fill: -netfs-success;
     -fx-font-weight: bold;
 }
 
-.status-cell-failed {
+.operations-table-view .status-cell-failed,
+.operations-table-view .table-row-cell:filled:hover .status-cell-failed,
+.operations-table-view .table-row-cell:filled:selected .status-cell-failed {
     -fx-text-fill: -netfs-error;
     -fx-font-weight: bold;
 }

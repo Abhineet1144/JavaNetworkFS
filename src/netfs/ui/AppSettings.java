@@ -27,11 +27,13 @@ final class AppSettings {
 
     // Stats tab keys
     static final String STATS_PERSIST = "stats.persist";
+    static final String CONSOLE_AUTO_SCROLL = "console.autoScroll";
 
     // App behavior keys
     static final String APP_CLOSE_TO_TRAY = "app.closeToTray";
     static final String APP_START_ON_LOGIN = "app.startOnLogin";
     static final String APP_START_MINIMIZED = "app.startMinimized";
+    static final String HOST_START_ON_LAUNCH = "host.startOnLaunch";
 
     private AppSettings() {
     }

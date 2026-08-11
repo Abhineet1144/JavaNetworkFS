@@ -1,6 +1,7 @@
 package netfs.ui;
 
 import java.io.File;
+import java.util.function.UnaryOperator;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -8,6 +9,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -40,6 +42,7 @@ public class HostTab {
     public HostTab(LogConsole logConsole, SettingsTab settingsTab) {
         this.logConsole = logConsole;
         this.settingsTab = settingsTab;
+        installNumericInputFilter(portField, "10002");
         this.content = build();
         stopButton.setDisable(true);
         setIdleStatus();
@@ -48,6 +51,12 @@ public class HostTab {
 
     public VBox getContent() {
         return content;
+    }
+
+    void startServerOnLaunch() {
+        if (!startButton.isDisabled()) {
+            startServer();
+        }
     }
 
     private VBox build() {
@@ -139,12 +148,16 @@ public class HostTab {
 
         Thread serverThread = new Thread(() -> {
             try {
-                Platform.runLater(() -> setRunningStatus("Running on port " + port));
+                Platform.runLater(() -> {
+                    settingsTab.setHostActive(true);
+                    setRunningStatus("Running on port " + port);
+                });
                 FileSystemServer.start(config);
             } catch (Throwable ex) {
                 showError("Server error: " + describe(ex));
             } finally {
                 Platform.runLater(() -> {
+                    settingsTab.setHostActive(false);
                     startButton.setDisable(false);
                     stopButton.setDisable(true);
                     setIdleStatus();
@@ -216,5 +229,18 @@ public class HostTab {
         icon.setContent(path);
         icon.getStyleClass().add("button-icon");
         return icon;
+    }
+
+    private static void installNumericInputFilter(TextField field, String fallback) {
+        String trimmed = field.getText() == null ? "" : field.getText().trim();
+        field.setText(trimmed.matches("\\d+") ? trimmed : fallback);
+        UnaryOperator<TextFormatter.Change> filter = change ->
+                change.getControlNewText().matches("\\d*") ? change : null;
+        field.setTextFormatter(new TextFormatter<>(filter));
+        field.textProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue != null && !newValue.matches("\\d*")) {
+                field.setText(newValue.replaceAll("\\D", ""));
+            }
+        });
     }
 }

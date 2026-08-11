@@ -20,6 +20,7 @@ public final class OperationLog {
     // Kept modest so the Stats table (and the underlying JavaFX TableView refresh)
     // stays responsive - a few hundred rows is plenty for a live operations view.
     private static final int MAX_ENTRIES = 500;
+    private static final long COMPLETED_RETENTION_MILLIS = 120_000;
 
     private static final Queue<OperationLogEntry> ENTRIES = new ConcurrentLinkedQueue<>();
     private static volatile boolean persist = false;
@@ -71,12 +72,15 @@ public final class OperationLog {
         return persist;
     }
 
-    /** Removes completed (non-failed) entries when persistence is disabled. */
+    /** Removes older completed entries when persistence is disabled. */
     public static void sweep() {
         if (persist) {
             return;
         }
-        ENTRIES.removeIf(entry -> entry.getStatus() == OperationStatus.COMPLETED);
+        long cutoff = System.currentTimeMillis() - COMPLETED_RETENTION_MILLIS;
+        ENTRIES.removeIf(entry -> entry.getStatus() == OperationStatus.COMPLETED
+                && entry.getEndTime() > 0
+                && entry.getEndTime() < cutoff);
     }
 
     /** Clears everything, including failed entries. Used by the manual "Clear" action. */
