@@ -1,5 +1,6 @@
 package netfs.diskio;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -225,6 +226,8 @@ public class KernelFSHandler extends FuseStubFS {
         Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
         synchronized (lock) {
             try {
+                File file = new File(path);
+                if (!file.canRead()) return 0;
                 ReadOperation readOperation = new ReadOperation(path, buf, size, offset);
                 ConnectionPool.addOperation(readOperation);
                 readOperation.waitForCompletion();
