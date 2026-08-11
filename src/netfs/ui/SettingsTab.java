@@ -1,9 +1,15 @@
 package netfs.ui;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -18,6 +24,7 @@ public class SettingsTab {
     private static final long BYTES_PER_MB = 1024L * 1024L;
 
     private final VBox content;
+    private final ScrollPane scrollPane;
 
     private final TextField hostMaxThreadsField = new TextField(
             AppSettings.getString(AppSettings.HOST_MAX_THREADS, "111"));
@@ -30,14 +37,23 @@ public class SettingsTab {
     private final TextField mountMaxServerConnectorField = new TextField(
             AppSettings.getString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, "3"));
     private final CheckBox closeToTrayCheck = new CheckBox();
+    private final CheckBox startOnLoginCheck = new CheckBox();
+    private final CheckBox startMinimizedCheck = new CheckBox();
 
     public SettingsTab() {
         closeToTrayCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_CLOSE_TO_TRAY, true));
+        startOnLoginCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_START_ON_LOGIN, false));
+        startMinimizedCheck.setSelected(AppSettings.getBoolean(AppSettings.APP_START_MINIMIZED, false));
         content = build();
+        scrollPane = new ScrollPane(content);
+        scrollPane.getStyleClass().add("settings-scroll");
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
     }
 
-    public VBox getContent() {
-        return content;
+    public ScrollPane getContent() {
+        return scrollPane;
     }
 
     int getHostMaxThreads() {
@@ -68,6 +84,10 @@ public class SettingsTab {
         return closeToTrayCheck.isSelected();
     }
 
+    boolean isStartMinimizedEnabled() {
+        return startMinimizedCheck.isSelected();
+    }
+
     void saveSettings() {
         AppSettings.setString(AppSettings.HOST_MAX_THREADS, hostMaxThreadsField.getText().trim());
         AppSettings.setString(AppSettings.HOST_MAX_SIZE, hostMaxSizeField.getText().trim());
@@ -75,6 +95,9 @@ public class SettingsTab {
         AppSettings.setString(AppSettings.MOUNT_MAX_FILE_CACHE, mountMaxFileCacheField.getText().trim());
         AppSettings.setString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, mountMaxServerConnectorField.getText().trim());
         AppSettings.setBoolean(AppSettings.APP_CLOSE_TO_TRAY, closeToTrayCheck.isSelected());
+        AppSettings.setBoolean(AppSettings.APP_START_ON_LOGIN, startOnLoginCheck.isSelected());
+        AppSettings.setBoolean(AppSettings.APP_START_MINIMIZED, startMinimizedCheck.isSelected());
+        updateAutostart(startOnLoginCheck.isSelected());
     }
 
     private VBox build() {
@@ -103,7 +126,9 @@ public class SettingsTab {
 
         VBox appForm = settingsGroup(
                 settingRow("Close to Tray", "Keep NetFS running in the background when the window is closed.",
-                        closeToTrayCheck));
+                        closeToTrayCheck),
+                settingRow("Start on Login", "Launch NetFS automatically after signing in.", startOnLoginCheck),
+                settingRow("Start Minimized", "Open NetFS in the tray when launched on login.", startMinimizedCheck));
 
         VBox box = new VBox(14, heading, appHeading, appForm, hostHeading, hostForm, mountHeading, mountForm);
         box.setPadding(new Insets(20, 24, 20, 24));
@@ -188,5 +213,35 @@ public class SettingsTab {
             return defaultMegabytes;
         }
         return value;
+    }
+
+    private static void updateAutostart(boolean enabled) {
+        Path autostartFile = autostartFile();
+        try {
+            if (enabled) {
+                Files.createDirectories(autostartFile.getParent());
+                Files.writeString(autostartFile, desktopEntry(), StandardCharsets.UTF_8);
+            } else {
+                Files.deleteIfExists(autostartFile);
+            }
+        } catch (IOException ex) {
+            System.err.println("[UI] Failed to update autostart setting: " + ex.getMessage());
+        }
+    }
+
+    private static Path autostartFile() {
+        return Path.of(System.getProperty("user.home"), ".config", "autostart", "netfs.desktop");
+    }
+
+    private static String desktopEntry() {
+        return String.join("\n",
+                "[Desktop Entry]",
+                "Type=Application",
+                "Name=NetFS",
+                "Comment=Java Network FS",
+                "Exec=netfs-ui",
+                "Terminal=false",
+                "X-GNOME-Autostart-enabled=true",
+                "");
     }
 }

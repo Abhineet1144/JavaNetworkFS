@@ -81,7 +81,7 @@ public class StatsTab {
         });
 
         Button clearButton = new Button("Clear Log");
-        clearButton.getStyleClass().add("danger-button");
+        clearButton.getStyleClass().addAll("danger-button", "utility-button");
         clearButton.setOnAction(e -> {
             OperationLog.clear();
             refresh();
@@ -90,13 +90,7 @@ public class StatsTab {
         HBox controls = new HBox(16, persistCheck, clearButton, countLabel);
         controls.setAlignment(Pos.CENTER_LEFT);
 
-        Label hint = new Label(
-                "Completed operations are cleared automatically unless \"Persist\" is checked. "
-                        + "Failed operations always stay listed until cleared.");
-        hint.getStyleClass().add("hint-label");
-        hint.setWrapText(true);
-
-        VBox box = new VBox(14, heading, controls, operationsTable, hint, buildTransferSection());
+        VBox box = new VBox(14, heading, controls, operationsTable, buildTransferSection());
         box.setPadding(new Insets(20, 24, 20, 24));
         VBox.setVgrow(operationsTable, Priority.ALWAYS);
         return box;

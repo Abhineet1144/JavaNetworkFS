@@ -32,8 +32,8 @@ public class HostTab {
             AppSettings.getString(AppSettings.HOST_SHARED_FOLDER, System.getProperty("user.home")));
     private final TextField portField = new TextField(AppSettings.getString(AppSettings.HOST_PORT, "10002"));
 
-    private final Button startButton = new Button("Start Server");
-    private final Button stopButton = new Button("Stop Server");
+    private final Button startButton = new Button("Start");
+    private final Button stopButton = new Button("Stop");
     private final Label statusLabel = new Label("Stopped");
     private final Label errorLabel = new Label();
 

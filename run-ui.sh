@@ -18,6 +18,7 @@ fi
 # in the same process (see jnr-fuse GitHub issue #162). This UI process itself never
 # touches jnr-fuse/libfuse, so it needs no special native-compat flags.
 java \
+  --enable-preview \
   --module-path "$JAVAFX_DIR" \
   --add-modules javafx.controls \
   -cp "$OUT_DIR:$LIB_DIR/*" \

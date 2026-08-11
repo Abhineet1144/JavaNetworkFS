@@ -30,6 +30,8 @@ final class AppSettings {
 
     // App behavior keys
     static final String APP_CLOSE_TO_TRAY = "app.closeToTray";
+    static final String APP_START_ON_LOGIN = "app.startOnLogin";
+    static final String APP_START_MINIMIZED = "app.startMinimized";
 
     private AppSettings() {
     }

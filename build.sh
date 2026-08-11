@@ -22,6 +22,8 @@ if [[ ${#sources[@]} -eq 0 ]]; then
 fi
 
 javac \
+  --enable-preview \
+  --release 21 \
   --module-path "$JAVAFX_DIR" \
   --add-modules javafx.controls \
   -cp "$LIB_DIR/*" \

@@ -64,6 +64,7 @@
     -fx-border-width: 0;
     -fx-padding: 8 18 8 18;
     -fx-text-fill: -netfs-text-nav;
+    -fx-font-size: 13px;
     -fx-font-weight: bold;
     -fx-cursor: hand;
     -fx-min-width: -1;
@@ -134,6 +135,7 @@
 .form-side-button {
     -fx-min-width: 96px;
     -fx-pref-width: 96px;
+    -fx-max-width: 96px;
     -fx-min-height: 32px;
     -fx-pref-height: 32px;
     -fx-max-height: 32px;
@@ -150,6 +152,7 @@
     -fx-border-radius: 6;
     -fx-border-width: 1;
     -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
 }
 
 .text-field:focused {
@@ -158,23 +161,51 @@
 
 .check-box {
     -fx-text-fill: -netfs-text;
+    -fx-padding: 0;
+    -fx-cursor: hand;
 }
 
 .check-box .box {
+    -fx-min-width: 22px;
+    -fx-pref-width: 22px;
+    -fx-max-width: 22px;
+    -fx-min-height: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-height: 22px;
     -fx-background-color: -netfs-control-bg;
     -fx-border-color: -netfs-control-border;
-    -fx-background-radius: 4;
-    -fx-border-radius: 4;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+}
+
+.check-box:hover .box {
+    -fx-background-color: -netfs-control-hover;
+}
+
+.check-box:selected .box {
+    -fx-background-color: -netfs-primary;
+    -fx-border-color: -netfs-primary;
+}
+
+.check-box .mark {
+    -fx-background-color: transparent;
 }
 
 /* Buttons */
 .button {
     -fx-background-radius: 6;
     -fx-padding: 8 18 8 18;
+    -fx-font-size: 13px;
     -fx-font-weight: bold;
     -fx-cursor: hand;
     -fx-background-color: -netfs-control-strong;
     -fx-text-fill: -netfs-text-button;
+    -fx-min-width: 128px;
+    -fx-pref-width: 128px;
+    -fx-min-height: 36px;
+    -fx-pref-height: 36px;
+    -fx-max-height: 36px;
 }
 
 .button:hover {
@@ -184,6 +215,16 @@
 .button:disabled {
     -fx-opacity: 0.45;
     -fx-cursor: default;
+}
+
+.utility-button {
+    -fx-min-width: 92px;
+    -fx-pref-width: 92px;
+    -fx-max-width: 92px;
+    -fx-min-height: 32px;
+    -fx-pref-height: 32px;
+    -fx-max-height: 32px;
+    -fx-padding: 6 14 6 14;
 }
 
 .primary-button {
@@ -257,7 +298,7 @@
     -fx-text-fill: -netfs-text-console;
     -fx-highlight-fill: -netfs-primary;
     -fx-font-family: "JetBrains Mono", "Consolas", monospace;
-    -fx-font-size: 11.5px;
+    -fx-font-size: 12px;
     -fx-border-color: -netfs-control-border;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
@@ -293,12 +334,56 @@
 .console-clear-button {
     -fx-padding: 5 10 5 8;
     -fx-font-size: 11px;
-    -fx-min-width: -1;
-    -fx-pref-width: -1;
-    -fx-max-width: -1;
+    -fx-min-width: 76px;
+    -fx-pref-width: 76px;
+    -fx-max-width: 76px;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-max-height: 30px;
 }
 
 /* Settings */
+.settings-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.settings-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.settings-scroll .scroll-bar:vertical,
+.settings-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.settings-scroll .scroll-bar:vertical {
+    -fx-pref-width: 10px;
+}
+
+.settings-scroll .scroll-bar .thumb {
+    -fx-background-color: -netfs-control-border;
+    -fx-background-radius: 8;
+}
+
+.settings-scroll .scroll-bar .thumb:hover {
+    -fx-background-color: -netfs-control-hover;
+}
+
+.settings-scroll .scroll-bar .increment-button,
+.settings-scroll .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
+.settings-scroll .scroll-bar .increment-arrow,
+.settings-scroll .scroll-bar .decrement-arrow {
+    -fx-padding: 0;
+    -fx-shape: "";
+}
+
 .settings-section-title {
     -fx-text-fill: -netfs-text-strong;
     -fx-font-size: 13px;
@@ -332,7 +417,7 @@
 
 .setting-description {
     -fx-text-fill: -netfs-text-muted;
-    -fx-font-size: 11.5px;
+    -fx-font-size: 12px;
 }
 
 .settings-input {
@@ -352,11 +437,6 @@
 }
 
 /* Operations table */
-.hint-label {
-    -fx-text-fill: -netfs-placeholder;
-    -fx-font-size: 11px;
-}
-
 .operations-table {
     -fx-background-color: -netfs-panel-bg;
     -fx-background-radius: 8;
@@ -390,6 +470,7 @@
     -fx-padding: 8 12 8 12;
     -fx-min-height: 38px;
     -fx-alignment: CENTER;
+    -fx-font-size: 12px;
 }
 
 .operations-detail-cell {
@@ -400,7 +481,7 @@
     -fx-background-color: -netfs-control-bg;
     -fx-text-fill: -netfs-text-strong;
     -fx-font-weight: bold;
-    -fx-font-size: 11.5px;
+    -fx-font-size: 12px;
 }
 
 .operations-row {
@@ -465,6 +546,7 @@
     -fx-border-width: 0;
     -fx-min-width: 105px;
     -fx-alignment: CENTER;
+    -fx-font-size: 12px;
 }
 
 .transfer-header {

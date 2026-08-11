@@ -1,15 +1,5 @@
 package netfs.ui;
 
-import java.awt.AWTException;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
-import java.awt.RenderingHints;
-import java.awt.SystemTray;
-import java.awt.TrayIcon;
-import java.awt.image.BufferedImage;
-
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -37,7 +27,7 @@ public class NetFSApp extends Application {
     private static final double MIN_RESTORED_STAGE_WIDTH = DEFAULT_STAGE_WIDTH;
     private static final double MIN_RESTORED_STAGE_HEIGHT = DEFAULT_STAGE_HEIGHT;
 
-    private TrayIcon desktopTrayIcon;
+    private AppIndicatorTray desktopTrayIcon;
     private HostTab hostTab;
     private MountTab mountTab;
     private SettingsTab settingsTab;
@@ -120,8 +110,11 @@ public class NetFSApp extends Application {
                 quitApplication();
             }
         });
-        stage.show();
+        showStage(stage);
         installDesktopTrayIcon(stage, logConsole);
+        if (settingsTab.isStartMinimizedEnabled()) {
+            hideStage(stage);
+        }
     }
 
     private static String describe(Throwable throwable) {
@@ -148,38 +141,16 @@ public class NetFSApp extends Application {
     }
 
     private void installDesktopTrayIcon(Stage stage, LogConsole logConsole) {
-        if (!SystemTray.isSupported()) {
-            logConsole.log("[UI] Desktop system tray is not supported by this environment.");
-            return;
-        }
-
-        PopupMenu menu = new PopupMenu();
-        MenuItem showItem = new MenuItem("Show");
-        showItem.addActionListener(event -> Platform.runLater(() -> showStage(stage)));
-        MenuItem hideItem = new MenuItem("Hide");
-        hideItem.addActionListener(event -> Platform.runLater(() -> hideStage(stage)));
-        MenuItem quitItem = new MenuItem("Quit");
-        quitItem.addActionListener(event -> Platform.runLater(this::quitFromTray));
-        menu.add(showItem);
-        menu.add(hideItem);
-        menu.addSeparator();
-        menu.add(quitItem);
-
-        desktopTrayIcon = new TrayIcon(createTrayImage(), "Java Network FS", menu);
-        desktopTrayIcon.setImageAutoSize(false);
-        desktopTrayIcon.addActionListener(event -> Platform.runLater(() -> showStage(stage)));
-
-        try {
-            SystemTray.getSystemTray().add(desktopTrayIcon);
-        } catch (AWTException | SecurityException ex) {
-            desktopTrayIcon = null;
-            logConsole.log("[UI] Failed to install desktop tray icon: " + describe(ex));
-        }
+        desktopTrayIcon = AppIndicatorTray.install(
+                () -> showStage(stage),
+                () -> hideStage(stage),
+                this::quitFromTray,
+                message -> logConsole.log("[UI] Failed to install desktop tray icon: " + message));
     }
 
     private void removeDesktopTrayIcon() {
-        if (desktopTrayIcon != null && SystemTray.isSupported()) {
-            SystemTray.getSystemTray().remove(desktopTrayIcon);
+        if (desktopTrayIcon != null) {
+            desktopTrayIcon.close();
             desktopTrayIcon = null;
         }
     }
@@ -214,9 +185,18 @@ public class NetFSApp extends Application {
 
     private void showStage(Stage stage) {
         restoreStageBounds(stage);
-        stage.show();
         stage.setIconified(false);
-        stage.toFront();
+        stage.show();
+        bringStageToFront(stage);
+    }
+
+    private static void bringStageToFront(Stage stage) {
+        Platform.runLater(() -> {
+            stage.setAlwaysOnTop(true);
+            stage.toFront();
+            stage.requestFocus();
+            Platform.runLater(() -> stage.setAlwaysOnTop(false));
+        });
     }
 
     private void saveStageBounds(Stage stage) {
@@ -245,20 +225,6 @@ public class NetFSApp extends Application {
         stage.setY(lastStageY);
         stage.setWidth(Math.max(MIN_RESTORED_STAGE_WIDTH, lastStageWidth));
         stage.setHeight(Math.max(MIN_RESTORED_STAGE_HEIGHT, lastStageHeight));
-    }
-
-    private static BufferedImage createTrayImage() {
-        BufferedImage image = new BufferedImage(24, 24, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        graphics.setColor(new Color(233, 84, 32));
-        graphics.fillRect(0, 0, 24, 24);
-        graphics.setColor(new Color(233, 84, 32));
-        int squareSize = 8;
-        int squareOffset = (24 - squareSize) / 2;
-        graphics.fillRect(squareOffset, squareOffset, squareSize, squareSize);
-        graphics.dispose();
-        return image;
     }
 
     public static void main(String[] args) {
