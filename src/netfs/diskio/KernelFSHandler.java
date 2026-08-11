@@ -152,6 +152,8 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int open(String path, FuseFileInfo fi) {
+        File file = new File(path);
+        if (file.getParent().equals("/")) return -1;
         System.out.println("[CLIENT] Open file: " + path);
         return 0;
     }
@@ -226,8 +228,6 @@ public class KernelFSHandler extends FuseStubFS {
         Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
         synchronized (lock) {
             try {
-                File file = new File(path);
-                if (!file.canRead()) return 0;
                 ReadOperation readOperation = new ReadOperation(path, buf, size, offset);
                 ConnectionPool.addOperation(readOperation);
                 readOperation.waitForCompletion();
