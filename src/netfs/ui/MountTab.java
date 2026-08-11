@@ -11,6 +11,8 @@ import java.util.List;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -19,6 +21,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.DirectoryChooser;
 
 import netfs.state.OperationLog;
@@ -40,6 +43,7 @@ public class MountTab {
     private static final String XFER_PREFIX = "##XFER##";
 
     private final LogConsole logConsole;
+    private final SettingsTab settingsTab;
     private final VBox content;
 
     private final TextField mountPointField = new TextField(
@@ -47,23 +51,20 @@ public class MountTab {
     private final TextField hostField = new TextField(AppSettings.getString(AppSettings.MOUNT_HOST, "127.0.0.1"));
     private final TextField portField = new TextField(AppSettings.getString(AppSettings.MOUNT_PORT, "10002"));
     private final CheckBox mountOptionsCheck = new CheckBox("Enable mount options");
-    private final TextField cacheSizeField = new TextField(
-            AppSettings.getString(AppSettings.MOUNT_CACHE_SIZE, "65536"));
-    private final TextField maxFileCacheField = new TextField(
-            AppSettings.getString(AppSettings.MOUNT_MAX_FILE_CACHE, "30"));
-    private final TextField maxServerConnectorField = new TextField(
-            AppSettings.getString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, "3"));
 
     private final Button startButton = new Button("Mount");
     private final Button stopButton = new Button("Unmount");
+    private final Button testButton = new Button("Test");
     private final Label statusLabel = new Label("Not mounted");
     private final Label errorLabel = new Label();
 
     private Process mountProcess;
     private String activeMountPoint;
+    private volatile boolean unmountRequested;
 
-    public MountTab(LogConsole logConsole) {
+    public MountTab(LogConsole logConsole, SettingsTab settingsTab) {
         this.logConsole = logConsole;
+        this.settingsTab = settingsTab;
         mountOptionsCheck.setSelected(AppSettings.getBoolean(AppSettings.MOUNT_OPTIONS, true));
         this.content = build();
         stopButton.setDisable(true);
@@ -77,7 +78,7 @@ public class MountTab {
 
     private VBox build() {
         Label heading = new Label("Mount Options");
-        heading.getStyleClass().add("section-label");
+        heading.getStyleClass().add("page-title");
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -86,37 +87,46 @@ public class MountTab {
 
         Button browseButton = new Button("Browse...");
         browseButton.setOnAction(e -> chooseDirectory(mountPointField));
+        browseButton.getStyleClass().add("form-side-button");
+        testButton.getStyleClass().add("form-side-button");
 
         int row = 0;
-        form.addRow(row++, new Label("Mount Point:"), mountPointField, browseButton);
-        form.addRow(row++, new Label("Host:"), hostField);
-        form.addRow(row++, new Label("Port:"), portField);
-        form.addRow(row++, new Label("Cache Size:"), cacheSizeField);
-        form.addRow(row++, new Label("Max File Cache:"), maxFileCacheField);
-        form.addRow(row++, new Label("Max Server Connections:"), maxServerConnectorField);
+        form.addRow(row++, formLabel("Mount Point"), mountPointField, browseButton);
+        form.addRow(row++, formLabel("Host"), hostField, testButton);
+        form.addRow(row++, formLabel("Port"), portField);
         form.addRow(row++, new Label(""), mountOptionsCheck);
 
         GridPane.setHgrow(mountPointField, Priority.ALWAYS);
         GridPane.setHgrow(hostField, Priority.ALWAYS);
         GridPane.setHgrow(portField, Priority.ALWAYS);
-        GridPane.setHgrow(cacheSizeField, Priority.ALWAYS);
-        GridPane.setHgrow(maxFileCacheField, Priority.ALWAYS);
-        GridPane.setHgrow(maxServerConnectorField, Priority.ALWAYS);
+        GridPane.setValignment(browseButton, VPos.CENTER);
+        GridPane.setValignment(testButton, VPos.CENTER);
 
         startButton.getStyleClass().add("primary-button");
         stopButton.getStyleClass().add("danger-button");
+        startButton.setGraphic(icon("M12,3l5,5h-3v5h-4V8H7z M5,15h14v4H5z"));
+        stopButton.setGraphic(icon("M7,4h10v2H7z M12,21l-5,-5h3v-5h4v5h3z"));
+        testButton.setAccessibleText("Test host connection");
         startButton.setOnAction(e -> mount());
         stopButton.setOnAction(e -> unmount());
+        testButton.setOnAction(e -> testConnection());
 
         statusLabel.getStyleClass().addAll("status-pill", "status-idle");
 
-        HBox buttons = new HBox(10, startButton, stopButton, statusLabel);
+        HBox buttons = new HBox(10, startButton, stopButton);
+        buttons.setAlignment(Pos.CENTER);
+
+        VBox actions = new VBox(10, statusLabel, buttons);
+        actions.setAlignment(Pos.CENTER);
 
         errorLabel.getStyleClass().add("error-banner");
         errorLabel.setWrapText(true);
         errorLabel.setMaxWidth(Double.MAX_VALUE);
 
-        VBox box = new VBox(14, heading, form, buttons, errorLabel);
+        VBox panel = new VBox(14, form, actions, errorLabel);
+        panel.getStyleClass().add("action-panel");
+
+        VBox box = new VBox(14, heading, panel);
         box.setPadding(new Insets(20, 24, 20, 24));
         return box;
     }
@@ -142,9 +152,9 @@ public class MountTab {
         int maxServerConnector;
         try {
             port = Integer.parseInt(portField.getText().trim());
-            cacheSize = Integer.parseInt(cacheSizeField.getText().trim());
-            maxFileCache = Integer.parseInt(maxFileCacheField.getText().trim());
-            maxServerConnector = Integer.parseInt(maxServerConnectorField.getText().trim());
+            cacheSize = settingsTab.getMountCacheSize();
+            maxFileCache = settingsTab.getMountMaxFileCache();
+            maxServerConnector = settingsTab.getMountMaxServerConnector();
         } catch (NumberFormatException ex) {
             showError("Invalid numeric input: " + ex.getMessage());
             return;
@@ -169,20 +179,25 @@ public class MountTab {
         }
 
         saveSettings();
+        settingsTab.saveSettings();
         startButton.setDisable(true);
+        testButton.setDisable(true);
         setPendingStatus("Connecting to " + host + ":" + port + "...");
         activeMountPoint = mountPoint;
+        unmountRequested = false;
 
         Thread launcherThread = new Thread(() -> {
             try {
                 // Fail fast with a friendly message instead of mounting FUSE against a
                 // server that isn't reachable (e.g. "Connection refused").
-                try (Socket probe = new Socket()) {
-                    probe.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS);
+                try {
+                    probeHost(host, port);
                 } catch (IOException ex) {
                     showError("Cannot reach " + host + ":" + port + " - " + describe(ex));
                     return;
                 }
+
+                cleanupMountPoint(mountPoint);
 
                 // The mount itself runs in a separate headless JVM process (MountWorker)
                 // rather than in-process, since jnr-fuse's native FUSE callbacks crash the
@@ -208,7 +223,7 @@ public class MountTab {
 
                 streamProcessOutput(mountProcess);
                 int exitCode = mountProcess.waitFor();
-                if (exitCode != 0) {
+                if (exitCode != 0 && !unmountRequested) {
                     showError("Mount process exited unexpectedly (code " + exitCode + "). Check the console below.");
                 }
             } catch (Throwable ex) {
@@ -217,6 +232,7 @@ public class MountTab {
                 mountProcess = null;
                 Platform.runLater(() -> {
                     startButton.setDisable(false);
+                    testButton.setDisable(false);
                     stopButton.setDisable(true);
                     if (!errorLabel.isVisible()) {
                         setIdleStatus();
@@ -226,6 +242,52 @@ public class MountTab {
         }, "netfs-mount-launcher");
         launcherThread.setDaemon(true);
         launcherThread.start();
+    }
+
+    private void testConnection() {
+        hideError();
+
+        int port;
+        try {
+            port = Integer.parseInt(portField.getText().trim());
+        } catch (NumberFormatException ex) {
+            showError("Invalid port: " + ex.getMessage());
+            return;
+        }
+
+        String host = hostField.getText().trim();
+        if (host.isEmpty()) {
+            showError("Host is required.");
+            return;
+        }
+
+        saveSettings();
+        startButton.setDisable(true);
+        testButton.setDisable(true);
+        setPendingStatus("Testing " + host + ":" + port + "...");
+
+        Thread testThread = new Thread(() -> {
+            try {
+                probeHost(host, port);
+                logConsole.log("[UI] Reachable: " + host + ":" + port);
+                Platform.runLater(() -> setRunningStatus("Reachable " + host + ":" + port));
+            } catch (IOException ex) {
+                showError("Cannot reach " + host + ":" + port + " - " + describe(ex));
+            } finally {
+                Platform.runLater(() -> {
+                    startButton.setDisable(false);
+                    testButton.setDisable(false);
+                });
+            }
+        }, "netfs-mount-test");
+        testThread.setDaemon(true);
+        testThread.start();
+    }
+
+    private static void probeHost(String host, int port) throws IOException {
+        try (Socket probe = new Socket()) {
+            probe.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS);
+        }
     }
 
     /**
@@ -291,9 +353,10 @@ public class MountTab {
 
     private void unmount() {
         String mountPoint = activeMountPoint;
+        unmountRequested = true;
         try {
             if (mountPoint != null) {
-                runUnmountCommand(mountPoint);
+                cleanupMountPoint(mountPoint);
             }
             if (mountProcess != null) {
                 mountProcess.destroy();
@@ -304,21 +367,45 @@ public class MountTab {
         } finally {
             stopButton.setDisable(true);
             startButton.setDisable(false);
+            testButton.setDisable(false);
             setIdleStatus();
         }
     }
 
-    /** Tries fusermount3 then fusermount to cleanly release the FUSE mount point. */
-    private void runUnmountCommand(String mountPoint) {
+    /** Tries regular then lazy unmount to release stale FUSE mount state. */
+    private void cleanupMountPoint(String mountPoint) {
+        if (runUnmountCommand(mountPoint, "-u")) {
+            return;
+        }
+        runUnmountCommand(mountPoint, "-uz");
+    }
+
+    private boolean runUnmountCommand(String mountPoint, String option) {
         for (String fusermount : List.of("fusermount3", "fusermount")) {
             try {
-                new ProcessBuilder(fusermount, "-u", mountPoint)
+                Process process = new ProcessBuilder(fusermount, option, mountPoint)
                         .redirectErrorStream(true)
-                        .start()
-                        .waitFor();
-                return;
+                        .start();
+                streamUnmountOutput(process);
+                if (process.waitFor() == 0) {
+                    return true;
+                }
             } catch (IOException | InterruptedException ignored) {
+                if (ignored instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
                 // Try the next candidate.
+            }
+        }
+        return false;
+    }
+
+    private void streamUnmountOutput(Process process) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            while (reader.readLine() != null) {
+                // Drain output so fusermount cannot block on a full pipe.
             }
         }
     }
@@ -334,9 +421,6 @@ public class MountTab {
         AppSettings.setString(AppSettings.MOUNT_HOST, hostField.getText().trim());
         AppSettings.setString(AppSettings.MOUNT_PORT, portField.getText().trim());
         AppSettings.setBoolean(AppSettings.MOUNT_OPTIONS, mountOptionsCheck.isSelected());
-        AppSettings.setString(AppSettings.MOUNT_CACHE_SIZE, cacheSizeField.getText().trim());
-        AppSettings.setString(AppSettings.MOUNT_MAX_FILE_CACHE, maxFileCacheField.getText().trim());
-        AppSettings.setString(AppSettings.MOUNT_MAX_SERVER_CONNECTOR, maxServerConnectorField.getText().trim());
     }
 
     private void setPendingStatus(String text) {
@@ -358,6 +442,7 @@ public class MountTab {
             statusLabel.getStyleClass().setAll("status-pill", "status-error");
             statusLabel.setText("Error");
             startButton.setDisable(false);
+            testButton.setDisable(false);
             stopButton.setDisable(true);
         });
     }
@@ -372,5 +457,17 @@ public class MountTab {
         String message = throwable.getMessage();
         return throwable.getClass().getSimpleName() + (message != null ? ": " + message : "");
     }
-}
 
+    private static Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("form-label");
+        return label;
+    }
+
+    private static SVGPath icon(String path) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(path);
+        icon.getStyleClass().add("button-icon");
+        return icon;
+    }
+}

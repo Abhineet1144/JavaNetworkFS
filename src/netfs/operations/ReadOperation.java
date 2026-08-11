@@ -2,7 +2,6 @@ package netfs.operations;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
 
 import jnr.ffi.Pointer;
 import netfs.cache.CacheBlock;
@@ -122,11 +121,6 @@ public class ReadOperation extends Operation {
                 }
             }
 
-            var i = connection.getInputStream();
-
-            // Always fetch at least as many bytes as were actually requested - the
-            // configured cache size is a prefetch hint, not a cap on the read result.
-            // Otherwise a request larger than the cache size gets silently truncated.
             int fetchSize = Math.max((int) size, CacheManager.getCacheSize());
             System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size
                     + ", prefetch=" + CacheManager.getCacheSize() + ", fetch=" + fetchSize);
@@ -148,12 +142,12 @@ public class ReadOperation extends Operation {
         }
     }
 
-    public byte[] getData(String path, long offset, int length, ServerConnection connection) throws IOException {
+    public byte[] getData(String path, long offset, int cacheSize, ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
 
         System.out.println("[CLIENT] Fetch missing cache segment path=" + path + ", offset=" + offset
-                + ", bytes=" + length);
-        sendRequest("read:" + path + ":" + offset + ":" + length, connection);
+                + ", bytes=" + cacheSize);
+        sendRequest("read:" + path + ":" + offset + ":" + CacheManager.getCacheSize(), connection);
         int resp = Integer.parseInt(JNFSInputStream.readLine(i));
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);

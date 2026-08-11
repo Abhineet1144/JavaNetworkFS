@@ -4,6 +4,7 @@ import java.io.File;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -11,6 +12,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.DirectoryChooser;
 
 import netfs.config.ServerConfig;
@@ -23,23 +25,21 @@ import netfs.net.FileSystemServer;
 public class HostTab {
 
     private final LogConsole logConsole;
+    private final SettingsTab settingsTab;
     private final VBox content;
 
     private final TextField sharedFolderField = new TextField(
             AppSettings.getString(AppSettings.HOST_SHARED_FOLDER, System.getProperty("user.home")));
     private final TextField portField = new TextField(AppSettings.getString(AppSettings.HOST_PORT, "10002"));
-    private final TextField maxThreadsField = new TextField(
-            AppSettings.getString(AppSettings.HOST_MAX_THREADS, "111"));
-    private final TextField maxSizeField = new TextField(
-            AppSettings.getString(AppSettings.HOST_MAX_SIZE, "1000000"));
 
     private final Button startButton = new Button("Start Server");
     private final Button stopButton = new Button("Stop Server");
     private final Label statusLabel = new Label("Stopped");
     private final Label errorLabel = new Label();
 
-    public HostTab(LogConsole logConsole) {
+    public HostTab(LogConsole logConsole, SettingsTab settingsTab) {
         this.logConsole = logConsole;
+        this.settingsTab = settingsTab;
         this.content = build();
         stopButton.setDisable(true);
         setIdleStatus();
@@ -52,7 +52,7 @@ public class HostTab {
 
     private VBox build() {
         Label heading = new Label("Server Options");
-        heading.getStyleClass().add("section-label");
+        heading.getStyleClass().add("page-title");
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -63,30 +63,35 @@ public class HostTab {
         browseButton.setOnAction(e -> chooseDirectory(sharedFolderField));
 
         int row = 0;
-        form.addRow(row++, new Label("Shared Folder:"), sharedFolderField, browseButton);
-        form.addRow(row++, new Label("Port:"), portField);
-        form.addRow(row++, new Label("Max Threads:"), maxThreadsField);
-        form.addRow(row++, new Label("Max Cache Size (bytes):"), maxSizeField);
+        form.addRow(row++, formLabel("Shared Folder"), sharedFolderField, browseButton);
+        form.addRow(row++, formLabel("Port"), portField);
 
         GridPane.setHgrow(sharedFolderField, Priority.ALWAYS);
         GridPane.setHgrow(portField, Priority.ALWAYS);
-        GridPane.setHgrow(maxThreadsField, Priority.ALWAYS);
-        GridPane.setHgrow(maxSizeField, Priority.ALWAYS);
 
         startButton.getStyleClass().add("primary-button");
         stopButton.getStyleClass().add("danger-button");
+        startButton.setGraphic(icon("M8,5v14l11,-7z"));
+        stopButton.setGraphic(icon("M6,6h12v12H6z"));
         startButton.setOnAction(e -> startServer());
         stopButton.setOnAction(e -> stopServer());
 
         statusLabel.getStyleClass().addAll("status-pill", "status-idle");
 
-        HBox buttons = new HBox(10, startButton, stopButton, statusLabel);
+        HBox buttons = new HBox(10, startButton, stopButton);
+        buttons.setAlignment(Pos.CENTER);
+
+        VBox actions = new VBox(10, statusLabel, buttons);
+        actions.setAlignment(Pos.CENTER);
 
         errorLabel.getStyleClass().add("error-banner");
         errorLabel.setWrapText(true);
         errorLabel.setMaxWidth(Double.MAX_VALUE);
 
-        VBox box = new VBox(14, heading, form, buttons, errorLabel);
+        VBox panel = new VBox(14, form, actions, errorLabel);
+        panel.getStyleClass().add("action-panel");
+
+        VBox box = new VBox(14, heading, panel);
         box.setPadding(new Insets(20, 24, 20, 24));
         return box;
     }
@@ -110,9 +115,9 @@ public class HostTab {
         int port;
         int maxThreads;
         try {
-            maxSize = Long.parseLong(maxSizeField.getText().trim());
             port = Integer.parseInt(portField.getText().trim());
-            maxThreads = Integer.parseInt(maxThreadsField.getText().trim());
+            maxSize = settingsTab.getHostMaxSize();
+            maxThreads = settingsTab.getHostMaxThreads();
         } catch (NumberFormatException ex) {
             showError("Invalid numeric input: " + ex.getMessage());
             return;
@@ -125,6 +130,7 @@ public class HostTab {
         }
 
         saveSettings();
+        settingsTab.saveSettings();
         ServerConfig config = new ServerConfig(maxSize, port, maxThreads, sharedFolder);
 
         startButton.setDisable(true);
@@ -151,7 +157,8 @@ public class HostTab {
 
     private void stopServer() {
         FileSystemServer.signalToStop();
-        logConsole.log("[UI] Stop requested. Server will stop after its next accepted connection.");
+        logConsole.log("[UI] Stop requested.");
+        setPendingStatus("Stopping...");
         stopButton.setDisable(true);
     }
 
@@ -159,8 +166,6 @@ public class HostTab {
     void saveSettings() {
         AppSettings.setString(AppSettings.HOST_SHARED_FOLDER, sharedFolderField.getText().trim());
         AppSettings.setString(AppSettings.HOST_PORT, portField.getText().trim());
-        AppSettings.setString(AppSettings.HOST_MAX_THREADS, maxThreadsField.getText().trim());
-        AppSettings.setString(AppSettings.HOST_MAX_SIZE, maxSizeField.getText().trim());
     }
 
     private void setIdleStatus() {
@@ -199,5 +204,17 @@ public class HostTab {
         String message = throwable.getMessage();
         return throwable.getClass().getSimpleName() + (message != null ? ": " + message : "");
     }
-}
 
+    private static Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("form-label");
+        return label;
+    }
+
+    private static SVGPath icon(String path) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(path);
+        icon.getStyleClass().add("button-icon");
+        return icon;
+    }
+}

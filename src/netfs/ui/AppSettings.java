@@ -28,6 +28,9 @@ final class AppSettings {
     // Stats tab keys
     static final String STATS_PERSIST = "stats.persist";
 
+    // App behavior keys
+    static final String APP_CLOSE_TO_TRAY = "app.closeToTray";
+
     private AppSettings() {
     }
 

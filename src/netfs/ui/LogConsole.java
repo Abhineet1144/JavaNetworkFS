@@ -2,13 +2,18 @@ package netfs.ui;
 
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
-import javafx.scene.control.Label;
+import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 
 /**
  * Shared console area that mirrors {@code System.out}/{@code System.err} so the user
@@ -20,6 +25,8 @@ public class LogConsole {
 
     private static final int MAX_LINES = 1500;
     private static final int TRIM_CHECK_INTERVAL = 100;
+    private static final boolean MIRROR_TO_ORIGINAL_STREAMS = false;
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private final TextArea textArea = new TextArea();
     private final VBox content;
@@ -29,15 +36,22 @@ public class LogConsole {
 
     public LogConsole() {
         textArea.setEditable(false);
-        textArea.setWrapText(true);
-        textArea.setPrefRowCount(10);
+        textArea.setWrapText(false);
         textArea.getStyleClass().add("log-console");
         VBox.setVgrow(textArea, Priority.ALWAYS);
 
-        Label label = new Label("Console");
-        label.getStyleClass().add("section-label");
-        content = new VBox(6, label, textArea);
-        content.setPadding(new Insets(8, 20, 16, 20));
+        Button clearButton = new Button("Clear");
+        clearButton.getStyleClass().addAll("danger-button", "console-clear-button");
+        clearButton.setGraphic(trashIcon());
+        clearButton.setAccessibleText("Clear console");
+        clearButton.setOnAction(event -> clear());
+
+        HBox footer = new HBox(clearButton);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        content = new VBox(10, textArea, footer);
+        content.setPadding(new Insets(20, 24, 20, 24));
+        VBox.setVgrow(content, Priority.ALWAYS);
 
         redirectSystemStreams();
     }
@@ -50,15 +64,22 @@ public class LogConsole {
         Platform.runLater(() -> appendLine(message));
     }
 
+    private void clear() {
+        textArea.clear();
+        totalLines = 0;
+        linesSinceTrim = 0;
+    }
+
     /** Must run on the FX thread. */
     private void appendLine(String line) {
-        textArea.appendText(line + System.lineSeparator());
+        textArea.appendText("[" + TIME_FORMAT.format(LocalTime.now()) + "] " + line + System.lineSeparator());
         totalLines++;
         linesSinceTrim++;
         if (linesSinceTrim >= TRIM_CHECK_INTERVAL && totalLines > MAX_LINES) {
             trimOldLines();
             linesSinceTrim = 0;
         }
+        textArea.setScrollTop(Double.MAX_VALUE);
     }
 
     /** Drops the oldest lines so the TextArea never holds much more than MAX_LINES. Must run on the FX thread. */
@@ -81,22 +102,33 @@ public class LogConsole {
     }
 
     private void redirectSystemStreams() {
-        System.setOut(new PrintStream(new ConsoleOutputStream(System.out), true));
-        System.setErr(new PrintStream(new ConsoleOutputStream(System.err), true));
+        System.setOut(new PrintStream(new ConsoleOutputStream(System.out, MIRROR_TO_ORIGINAL_STREAMS), true));
+        System.setErr(new PrintStream(new ConsoleOutputStream(System.err, MIRROR_TO_ORIGINAL_STREAMS), true));
     }
 
-    /** Tees every line written to the given stream into the console TextArea as well. */
+    private static SVGPath trashIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent("M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6v12zM8,9h8v10H8V9zM15.5,4l-1,-1h-5l-1,1H5v2h14V4h-3.5z");
+        icon.getStyleClass().add("button-icon");
+        return icon;
+    }
+
+    /** Captures every line written to the given stream and mirrors it into the console TextArea. */
     private class ConsoleOutputStream extends OutputStream {
         private final PrintStream original;
+        private final boolean mirrorToOriginal;
         private final StringBuilder buffer = new StringBuilder();
 
-        ConsoleOutputStream(PrintStream original) {
+        ConsoleOutputStream(PrintStream original, boolean mirrorToOriginal) {
             this.original = original;
+            this.mirrorToOriginal = mirrorToOriginal;
         }
 
         @Override
         public void write(int b) {
-            original.write(b);
+            if (mirrorToOriginal) {
+                original.write(b);
+            }
             char c = (char) b;
             if (c == '\n') {
                 String line = buffer.toString();
