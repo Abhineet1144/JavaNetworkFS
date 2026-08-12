@@ -180,7 +180,7 @@ public class SettingsTab {
         aboutHeading.getStyleClass().add("settings-section-title");
 
         VBox aboutForm = settingsGroup(
-                infoRow("Version", "0.0.1"),
+                infoRow("Version", "0.0.2"),
                 infoRow("Authors", "Tejas, Abhineet"));
 
         VBox box = new VBox(14, heading, appHeading, appForm, hostHeading, hostForm, mountHeading, mountForm,
