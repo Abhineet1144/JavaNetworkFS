@@ -69,7 +69,6 @@ public class ClientHandler implements Runnable {
                 if (cmd.isEmpty()) {
                     continue;
                 }
-                System.out.println("[SERVER] Handler " + id + " received command: " + cmd);
                 OperationLogEntry logEntry = OperationLog.start(OperationSource.HOST, labelFor(cmd), detailFor(cmd));
                 try {
                 String path;

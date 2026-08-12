@@ -29,9 +29,6 @@ public class ConnectionPool {
     }
 
     public static void addOperation(Operation operation) throws InterruptedException {
-        if (operation.getOperationType() != netfs.operations.OperationType.READ) {
-            System.out.println("[CLIENT] Queue operation: " + operation.getOperationType());
-        }
         operationQueue.put(operation);
     }
 }

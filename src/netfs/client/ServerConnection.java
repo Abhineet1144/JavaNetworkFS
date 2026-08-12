@@ -7,7 +7,6 @@ import java.net.Socket;
 import java.util.concurrent.atomic.AtomicLong;
 
 import netfs.operations.Operation;
-import netfs.operations.OperationType;
 import netfs.operations.ReadOperation;
 import netfs.operations.WriteOperation;
 import netfs.state.OperationLog;
@@ -38,10 +37,6 @@ public class ServerConnection implements Runnable {
             System.out.println("[CLIENT] Server connection " + id + " connected");
             while (!Thread.currentThread().isInterrupted()) {
                 Operation operation = ConnectionPool.getOperationQueue().take();
-                boolean verboseOperation = operation.getOperationType() != OperationType.READ;
-                if (verboseOperation) {
-                    System.out.println("[CLIENT] Worker " + id + " executing operation: " + operation.getOperationType());
-                }
                 OperationLogEntry logEntry = OperationLog.start(OperationSource.MOUNT,
                         operation.getOperationType().name(), operation.getDetail());
                 long startNanos = System.nanoTime();
@@ -55,9 +50,6 @@ public class ServerConnection implements Runnable {
                     emitOpLog(operation, "FAILED", startNanos, e.getMessage());
                     throw e;
                 } finally {
-                    if (verboseOperation) {
-                        System.out.println("[CLIENT] Worker " + id + " completed operation: " + operation.getOperationType());
-                    }
                     operation.complete();
                 }
             }

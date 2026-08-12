@@ -86,7 +86,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filler, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("[CLIENT] List directory: " + path);
         filler.apply(buf, ".", null, 0);  // Current directory
         filler.apply(buf, "..", null, 0); // Parent directory
         try {
@@ -104,7 +103,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int mkdir(String path, long mode) {
-        System.out.println("[CLIENT] Create directory: " + path);
         try {
             MkdirOperation mkdirOperation = new MkdirOperation(path);
             ConnectionPool.addOperation(mkdirOperation);
@@ -120,7 +118,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int rmdir(String path) {
-        System.out.println("[CLIENT] Remove directory: " + path);
         try {
             RmdirOperation rmdirOperation = new RmdirOperation(path);
             ConnectionPool.addOperation(rmdirOperation);
@@ -136,7 +133,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int create(String path, long mode, FuseFileInfo fi) {
-        System.out.println("[CLIENT] Create file: " + path);
         try {
             CreateOperation createOperation = new CreateOperation(path);
             ConnectionPool.addOperation(createOperation);
@@ -154,7 +150,6 @@ public class KernelFSHandler extends FuseStubFS {
     public int open(String path, FuseFileInfo fi) {
         File file = new File(path);
         if (file.getParent().equals("/")) return -1;
-        System.out.println("[CLIENT] Open file: " + path);
         return 0;
     }
 
@@ -163,10 +158,8 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int release(String path, FuseFileInfo fi) {
-        System.out.println("[CLIENT] Close file: " + path);
         CacheBlock block = CacheManager.getCache(path);
         if (block != null) {
-            System.out.println("[CLIENT] Mark cache expired for: " + path);
             block.expired();
         }
         return 0;
@@ -177,7 +170,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int unlink(String path) {
-        System.out.println("[CLIENT] Delete file: " + path);
         try {
             UnlinkOperation unlinkOperation = new UnlinkOperation(path);
             ConnectionPool.addOperation(unlinkOperation);
@@ -193,7 +185,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int rename(String oldPath, String newPath) {
-        System.out.println("[CLIENT] Rename " + oldPath + " -> " + newPath);
         try {
             RenameOperation renameOperation = new RenameOperation(oldPath, newPath);
             ConnectionPool.addOperation(renameOperation);
@@ -209,7 +200,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int truncate(String path, long size) {
-        System.out.println("[CLIENT] Truncate file " + path + " to size=" + size);
         try {
             TruncateOperation truncateOperation = new TruncateOperation(path, size);
             ConnectionPool.addOperation(truncateOperation);
@@ -243,7 +233,6 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("[CLIENT] Write request path=" + path + ", offset=" + offset + ", size=" + size);
         try {
             WriteOperation writeOperation = new WriteOperation(path, buf, size, offset);
             ConnectionPool.addOperation(writeOperation);

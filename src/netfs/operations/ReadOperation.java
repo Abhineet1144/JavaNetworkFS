@@ -8,7 +8,6 @@ import netfs.cache.CacheBlock;
 import netfs.cache.CacheManager;
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
-import netfs.diskio.KernelFSHandler;
 
 public class ReadOperation extends Operation {
 
@@ -58,14 +57,11 @@ public class ReadOperation extends Operation {
                     int length = (int) size;
                     buf.put(0, cacheBlock.getData(), start, length);
                     bytesRead = length;
-                    System.out.println("[CLIENT] Cache hit path=" + path + ", offset=" + offset + ", bytes=" + length);
                     return;
                 }
             }
 
             int fetchSize = isBigJump ? (int) size : Math.max((int) size, CacheManager.getCacheSize());
-            System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size + ", fetch="
-                    + fetchSize);
             byte[] data = getData(path, offset, fetchSize, connection);
             int copyLen = Math.min((int) size, data.length);
             buf.put(0, data, 0, copyLen);
