@@ -2,6 +2,8 @@ package netfs.diskio;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,7 +32,15 @@ import ru.serce.jnrfuse.struct.Timespec;
 
 public class KernelFSHandler extends FuseStubFS {
 
-    public static final Map<String, String> map = new ConcurrentHashMap<>();
+    private static final int MAX_METADATA_ENTRIES = 10_000;
+
+    public static final Map<String, String> map = Collections.synchronizedMap(
+            new LinkedHashMap<String, String>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > MAX_METADATA_ENTRIES;
+                }
+            });
     private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
 
     private String host;
