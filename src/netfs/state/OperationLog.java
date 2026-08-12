@@ -10,18 +10,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * the Host (server) and Mount (client) sides. Plain Java only - no JavaFX dependency -
  * so it can be used by headless entry points too.
  *
- * <p>By default completed operations are pruned periodically (see {@link #sweep()}) to
- * keep the log small. Failed operations are never auto-pruned; they stick around until
- * {@link #clear()} is called explicitly. Setting {@link #setPersist(boolean)} to true
- * disables auto-pruning of completed operations as well.</p>
+ * <p>Operations are recorded only while persistence is enabled. Disabling persistence
+ * immediately clears the registry so disabled mode retains no operation entries.</p>
  */
 public final class OperationLog {
 
     // Kept modest so the Stats table (and the underlying JavaFX TableView refresh)
     // stays responsive - a few hundred rows is plenty for a live operations view.
     private static final int MAX_ENTRIES = 500;
-    private static final long COMPLETED_RETENTION_MILLIS = 120_000;
-
     private static final Queue<OperationLogEntry> ENTRIES = new ConcurrentLinkedQueue<>();
     private static volatile boolean persist = false;
 
@@ -29,6 +25,9 @@ public final class OperationLog {
     }
 
     public static OperationLogEntry start(OperationSource source, String operation, String detail) {
+        if (!persist) {
+            return null;
+        }
         OperationLogEntry entry = new OperationLogEntry(source, operation, detail);
         ENTRIES.add(entry);
         trimIfNeeded();
@@ -54,6 +53,9 @@ public final class OperationLog {
      */
     public static void recordRemote(OperationSource source, String operation, String detail,
             OperationStatus status, long durationMillis, String errorMessage) {
+        if (!persist) {
+            return;
+        }
         OperationLogEntry entry = new OperationLogEntry(source, operation, detail);
         entry.finalizeRemote(status, durationMillis, errorMessage);
         ENTRIES.add(entry);
@@ -66,6 +68,9 @@ public final class OperationLog {
 
     public static void setPersist(boolean value) {
         persist = value;
+        if (!value) {
+            ENTRIES.clear();
+        }
     }
 
     public static boolean isPersist() {
@@ -74,13 +79,9 @@ public final class OperationLog {
 
     /** Removes older completed entries when persistence is disabled. */
     public static void sweep() {
-        if (persist) {
-            return;
+        if (!persist) {
+            ENTRIES.clear();
         }
-        long cutoff = System.currentTimeMillis() - COMPLETED_RETENTION_MILLIS;
-        ENTRIES.removeIf(entry -> entry.getStatus() == OperationStatus.COMPLETED
-                && entry.getEndTime() > 0
-                && entry.getEndTime() < cutoff);
     }
 
     /** Clears everything, including failed entries. Used by the manual "Clear" action. */
