@@ -63,9 +63,9 @@ public class ReadOperation extends Operation {
                 }
             }
 
-            int fetchSize = Math.max((int) size, CacheManager.getCacheSize());
-            System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset
-                    + ", size=" + size + ", fetch=" + fetchSize);
+            int fetchSize = isBigJump ? (int) size : Math.max((int) size, CacheManager.getCacheSize());
+            System.out.println("[CLIENT] Cache miss path=" + path + ", offset=" + offset + ", size=" + size + ", fetch="
+                    + fetchSize);
             byte[] data = getData(path, offset, fetchSize, connection);
             int copyLen = Math.min((int) size, data.length);
             buf.put(0, data, 0, copyLen);

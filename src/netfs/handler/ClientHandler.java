@@ -10,6 +10,9 @@ import netfs.state.TransferStats;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,16 +84,13 @@ public class ClientHandler implements Runnable {
                     }
                     FileSystemServer.getOperationStateHandler()
                             .addMetaGetOperationState(id, "list: " + target.getAbsolutePath());
-                    File[] files = target.listFiles();
-                    if (files == null) {
-                        JNFSOutputStream.writeLine(out, "");
-                        OperationLog.complete(logEntry);
-                        continue;
-                    }
-                    for (File file : files) {
-                        JNFSOutputStream.writeLine(out, file.getName());
-                        // 2 for directory, 1 for files
-                        JNFSOutputStream.writeLine(out, (file.isDirectory() ? 2 : 1) + ":" + file.length());
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(target.toPath())) {
+                        for (Path child : stream) {
+                            File file = child.toFile();
+                            JNFSOutputStream.writeLine(out, file.getName());
+                            // 2 for directory, 1 for files
+                            JNFSOutputStream.writeLine(out, (file.isDirectory() ? 2 : 1) + ":" + file.length());
+                        }
                     }
                     JNFSOutputStream.writeLine(out, "");
                 } else if (cmd.startsWith(CommandConsts.Prefixes.STAT_CMD)) {
