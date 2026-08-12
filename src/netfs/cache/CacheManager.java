@@ -31,7 +31,7 @@ public class CacheManager {
         cleanupThread.start();
     }
 
-    public static void allocate(String path, long currentOffset, CacheBlock block) {
+    public static void allocate(String path, CacheBlock block) {
         CacheBlock existing = getCache(path);
         if (existing == null) {
             if (cache.size() < maxFileCache) {

@@ -68,7 +68,7 @@ public class ReadOperation extends Operation {
 
             if (!isBigJump) {
                 CacheBlock block = new CacheBlock(data, offset);
-                CacheManager.allocate(path, offset, block);
+                CacheManager.allocate(path, block);
             }
 
             bytesRead = copyLen;

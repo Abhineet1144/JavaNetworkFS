@@ -11,8 +11,7 @@ public class FileSystemClient {
 
     public FileSystemClient(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
-        kernelFSHandler = new KernelFSHandler(clientConfig.getHost(), clientConfig.getPort(),
-                clientConfig.getCacheSize(), clientConfig.getMaxFileCache());
+        kernelFSHandler = new KernelFSHandler(clientConfig.getCacheSize(), clientConfig.getMaxFileCache());
     }
 
     public void start() {
