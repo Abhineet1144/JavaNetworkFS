@@ -25,17 +25,33 @@ public class JNFSOutputStream extends BufferedOutputStream {
     }
 
     public int writeFileChunk(File file, long offset, int limit) throws IOException {
-        RandomAccessFile raf = new RandomAccessFile(file.getAbsoluteFile(), "r");
-        raf.seek(offset);
-        byte[] buffer = new byte[limit];
-        int read = raf.read(buffer, 0, limit);
-        System.out.println("[SERVER] Read file chunk file=" + file.getAbsolutePath() + ", offset=" + offset
-                + ", requested=" + limit + ", bytesRead=" + read);
-        writeLine(this, read + "");
-        write(buffer, 0, read);
-        flush();
-        raf.close();
-        return Math.max(read, 0);
+        final int bufferSize = 64 * 1024;
+
+        try (RandomAccessFile raf = new RandomAccessFile(file.getAbsoluteFile(), "r")) {
+            long available = Math.max(0, file.length() - offset);
+            int bytesToSend = (int) Math.min(limit, available);
+
+            writeLine(this, String.valueOf(bytesToSend));
+            raf.seek(offset);
+
+            byte[] buffer = new byte[Math.min(bufferSize, Math.max(bytesToSend, 1))];
+            int remaining = bytesToSend;
+
+            while (remaining > 0) {
+                int readSize = Math.min(buffer.length, remaining);
+                int read = raf.read(buffer, 0, readSize);
+
+                if (read == -1) {
+                    break;
+                }
+
+                write(buffer, 0, read);
+                remaining -= read;
+            }
+
+            flush();
+            return bytesToSend - remaining;
+        }
     }
 
     public static void writeLine(OutputStream out, String line) throws IOException {
