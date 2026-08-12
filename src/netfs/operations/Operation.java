@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.util.concurrent.CountDownLatch;
 
 import netfs.client.ServerConnection;
+import netfs.diskio.JNFSOutputStream;
 
 public abstract class Operation {
 
@@ -35,9 +36,7 @@ public abstract class Operation {
         return "";
     }
 
-    protected PrintWriter sendRequest(String req, ServerConnection connection) {
-        PrintWriter printWriter = new PrintWriter(connection.getOutputStream(), true);
-        printWriter.println(req);
-        return printWriter;
+    protected void sendRequest(String req, ServerConnection connection) throws IOException {
+        JNFSOutputStream.writeLine(connection.getOutputStream(), req);
     }
 }

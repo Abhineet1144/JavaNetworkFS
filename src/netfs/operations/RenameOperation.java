@@ -26,8 +26,8 @@ public class RenameOperation extends Operation {
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        PrintWriter printWriter = sendRequest("rename:" + oldPath, connection);
-        printWriter.println(newPath);
+        sendRequest("rename:" + oldPath, connection);
+        sendRequest(newPath, connection);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
             KernelFSHandler.map.remove(oldPath);

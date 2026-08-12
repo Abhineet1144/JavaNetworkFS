@@ -26,8 +26,8 @@ public class TruncateOperation extends Operation {
     @Override
     public void execute(ServerConnection connection) throws IOException {
         var i = connection.getInputStream();
-        PrintWriter printWriter = sendRequest("truncate:" + path, connection);
-        printWriter.println(size);
+        sendRequest("truncate:" + path, connection);
+        sendRequest(String.valueOf(size), connection);
         String resp = JNFSInputStream.readLine(i);
         if (isSuccess(resp)) {
             KernelFSHandler.map.remove(path);
