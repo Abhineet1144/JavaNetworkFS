@@ -61,54 +61,6 @@ public class ReadOperation extends Operation {
                     System.out.println("[CLIENT] Cache hit path=" + path + ", offset=" + offset + ", bytes=" + length);
                     return;
                 }
-
-                if (offset >= cacheStart && offset < cacheEnd && requestEnd > cacheEnd) {
-                    int cachedBytes = (int) (cacheEnd - offset);
-                    int missingBytes = (int) (requestEnd - cacheEnd);
-                    int cacheStartIndex = (int) (offset - cacheStart);
-
-                    buf.put(0, cacheBlock.getData(), cacheStartIndex, cachedBytes);
-
-                    String mapEntry = KernelFSHandler.map.get(path);
-                    long targetFileSize = Long.parseLong(mapEntry.split(":")[1]);
-
-                    if (cacheEnd >= targetFileSize) {
-                        bytesRead = cachedBytes;
-                        System.out.println("[CLIENT] Cache hit path=" + path + ", offset=" + offset
-                                + ", bytes=" + cachedBytes);
-                        return;
-                    }
-
-                    byte[] missingData = getData(path, cacheEnd, missingBytes, connection);
-                    int missingLen = Math.min(missingData.length, missingBytes);
-                    buf.put(cachedBytes, missingData, 0, missingLen);
-
-                    CacheManager.allocate(path, cacheStart,
-                            mergeForward(cacheBlock.getData(), cacheStart, missingData, missingLen));
-
-                    bytesRead = cachedBytes + missingLen;
-                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", offset=" + offset
-                            + ", cachedBytes=" + cachedBytes + ", fetchedBytes=" + missingLen);
-                    return;
-                }
-
-                if (offset < cacheStart && requestEnd > cacheStart && requestEnd <= cacheEnd) {
-                    int missingBytes = (int) (cacheStart - offset);
-                    int cachedBytes = (int) (requestEnd - cacheStart);
-
-                    byte[] missingData = getData(path, offset, missingBytes, connection);
-                    int missingLen = Math.min(missingData.length, missingBytes);
-                    buf.put(0, missingData, 0, missingLen);
-                    buf.put(missingLen, cacheBlock.getData(), 0, cachedBytes);
-
-                    CacheManager.allocate(path, offset,
-                            mergeBackward(missingData, missingLen, cacheBlock.getData(), cacheStart));
-
-                    bytesRead = missingLen + cachedBytes;
-                    System.out.println("[CLIENT] Cache partial hit path=" + path + ", offset=" + offset
-                            + ", cachedBytes=" + cachedBytes + ", fetchedBytes=" + missingLen);
-                    return;
-                }
             }
 
             int fetchSize = Math.max((int) size, CacheManager.getCacheSize());
@@ -137,51 +89,6 @@ public class ReadOperation extends Operation {
         byte[] data = new byte[resp];
         new DataInputStream(i).readFully(data);
         return data;
-    }
-
-    private static CacheBlock mergeForward(byte[] existing, long existingOffset, byte[] suffix, int suffixLength) {
-        int maxCacheBytes = CacheManager.getCacheSize();
-        int mergedLength = existing.length + suffixLength;
-        int keptLength = Math.min(maxCacheBytes, mergedLength);
-        byte[] merged = new byte[keptLength];
-        int dropped = mergedLength - keptLength;
-        long newOffset = existingOffset + dropped;
-
-        copyWindow(existing, 0, existing.length, suffix, suffixLength, dropped, merged);
-        return new CacheBlock(merged, newOffset);
-    }
-
-    private static CacheBlock mergeBackward(byte[] prefix, int prefixLength, byte[] existing, long existingOffset) {
-        int maxCacheBytes = CacheManager.getCacheSize();
-        int mergedLength = prefixLength + existing.length;
-        int keptLength = Math.min(maxCacheBytes, mergedLength);
-        byte[] merged = new byte[keptLength];
-
-        copyWindow(prefix, 0, prefixLength, existing, existing.length, 0, merged);
-        return new CacheBlock(merged, existingOffset - prefixLength);
-    }
-
-    private static void copyWindow(
-            byte[] first,
-            int firstOffset,
-            int firstLength,
-            byte[] second,
-            int secondLength,
-            int skip,
-            byte[] target) {
-        int targetOffset = 0;
-        int firstCopyStart = Math.min(firstLength, skip);
-        int firstCopyLength = firstLength - firstCopyStart;
-        if (firstCopyLength > 0) {
-            System.arraycopy(first, firstOffset + firstCopyStart, target, targetOffset, firstCopyLength);
-            targetOffset += firstCopyLength;
-        }
-
-        int secondSkip = Math.max(0, skip - firstLength);
-        int secondCopyLength = Math.min(secondLength - secondSkip, target.length - targetOffset);
-        if (secondCopyLength > 0) {
-            System.arraycopy(second, secondSkip, target, targetOffset, secondCopyLength);
-        }
     }
 
     public int getBytesRead() {

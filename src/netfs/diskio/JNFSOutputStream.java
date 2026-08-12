@@ -34,6 +34,7 @@ public class JNFSOutputStream extends BufferedOutputStream {
         writeLine(this, read + "");
         write(buffer, 0, read);
         flush();
+        raf.close();
         return Math.max(read, 0);
     }
 
