@@ -45,6 +45,7 @@ public class CacheManager {
     }
 
     public static boolean deallocate(String path) {
+        lastReadOffset.remove(path);
         return cache.remove(path) != null;
     }
 
@@ -69,10 +70,6 @@ public class CacheManager {
                 }
             }
         }
-    }
-
-    public static void evict(String path) {
-        cache.remove(path);
     }
 
     public static double getJumpThresholdMultiplier() {

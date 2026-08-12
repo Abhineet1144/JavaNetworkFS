@@ -159,6 +159,8 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int release(String path, FuseFileInfo fi) {
         CacheBlock block = CacheManager.getCache(path);
+        CacheManager.getLastReadOffset().remove(path);
+        pathLocks.remove(path);
         if (block != null) {
             block.expired();
         }
@@ -174,6 +176,8 @@ public class KernelFSHandler extends FuseStubFS {
             UnlinkOperation unlinkOperation = new UnlinkOperation(path);
             ConnectionPool.addOperation(unlinkOperation);
             unlinkOperation.waitForCompletion();
+            CacheManager.getLastReadOffset().remove(path);
+            pathLocks.remove(path);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

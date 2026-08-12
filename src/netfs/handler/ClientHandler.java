@@ -187,10 +187,10 @@ public class ClientHandler implements Runnable {
                             .addMetaGetOperationState(id, "Writing  " + path + " with offset: " + offset);
                     byte[] data = JNFSInputStream.readTill(in, len);
                     TransferStats.addWriteBytes(OperationSource.HOST, data.length);
-                    RandomAccessFile raf = new RandomAccessFile(target, "rw");
-                    raf.seek(offset);
-                    raf.write(data);
-                    raf.close();
+                    try (RandomAccessFile raf = new RandomAccessFile(target, "rw")) {
+                        raf.seek(offset);
+                        raf.write(data);
+                    }
                 } else if (cmd.startsWith(CommandConsts.Prefixes.TRUNCATE_CMD)) {
                     path = cmd.substring(CommandConsts.Prefixes.TRUNCATE_CMD.length());
                     target = resolveSharedPath(path);
@@ -199,9 +199,9 @@ public class ClientHandler implements Runnable {
                     FileSystemServer.getOperationStateHandler()
                             .addMetaGetOperationState(id, "truncate: " + target.getAbsolutePath() + " size: " + size);
                     if (target.exists()) {
-                        RandomAccessFile raf = new RandomAccessFile(target, "rw");
-                        raf.setLength(size);
-                        raf.close();
+                        try (RandomAccessFile raf = new RandomAccessFile(target, "rw")) {
+                            raf.setLength(size);
+                        }
                         JNFSOutputStream.writeLine(out, "1:" + size);
                     } else {
                         JNFSOutputStream.writeLine(out, "F");

@@ -42,7 +42,7 @@ public class ReadOperation extends Operation {
 
             if (isBigJump) {
                 if (cacheBlock != null) {
-                    CacheManager.evict(path);
+                    CacheManager.deallocate(path);
                     cacheBlock = null;
                 }
             }

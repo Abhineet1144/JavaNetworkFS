@@ -3,7 +3,6 @@ package netfs.operations;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-import netfs.cache.CacheManager;
 import netfs.client.ServerConnection;
 import netfs.diskio.JNFSInputStream;
 import netfs.diskio.KernelFSHandler;
