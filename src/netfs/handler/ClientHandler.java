@@ -124,11 +124,19 @@ public class ClientHandler implements Runnable {
                 }
                 FileSystemServer.getOperationStateHandler()
                         .addMetaGetOperationState(id, "Writing  " + path + " with offset: " + offset);
-                byte[] data = JNFSInputStream.readTill(in, len);
-                RandomAccessFile raf = new RandomAccessFile(target, "rw");
-                raf.seek(offset);
-                raf.write(data);
-                raf.close();
+                try (RandomAccessFile raf = new RandomAccessFile(target, "rw")) {
+                    raf.seek(offset);
+                    byte[] buffer = new byte[Math.min(16 * 1024, Math.max(1, len))];
+                    int remaining = len;
+                    while (remaining > 0) {
+                        int read = in.read(buffer, 0, Math.min(buffer.length, remaining));
+                        if (read < 0) {
+                            throw new EOFException("Unexpected end of write request");
+                        }
+                        raf.write(buffer, 0, read);
+                        remaining -= read;
+                    }
+                }
             } else if (cmd.startsWith(CommandConsts.Prefixes.TRUNCATE_CMD)) {
                 path = cmd.substring(CommandConsts.Prefixes.TRUNCATE_CMD.length());
                 target = new File(FileSystemServer.getConfig().getSharedFolder(), path);

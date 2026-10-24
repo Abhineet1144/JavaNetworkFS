@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,10 +24,15 @@ import ru.serce.jnrfuse.struct.Timespec;
 
 public class KernelFSHandler extends FuseStubFS {
 
-    private final Map<String, String> map = new HashMap<>();
-    private final Map<String, Object> pathLocks = new ConcurrentHashMap<>();
-    private static final Map<String, Long> lastReadOffset = new ConcurrentHashMap<>();
-    private static final double JUMP_THRESHOLD_MULTIPLIER = 2.0;
+    private final Map<String, String> map = new ConcurrentHashMap<>();
+    // A fixed lock table avoids retaining one lock forever for every path read.
+    private static final Object[] READ_LOCKS = new Object[64];
+
+    static {
+        for (int i = 0; i < READ_LOCKS.length; i++) {
+            READ_LOCKS[i] = new Object();
+        }
+    }
     private String host;
     private int port;
 
@@ -142,6 +146,7 @@ public class KernelFSHandler extends FuseStubFS {
             String resp = JNFSInputStream.readLine(i);
             if (isSuccess(resp)) {
                 map.remove(path);
+                CacheManager.evict(path);
             } else {
                 s.close();
                 return -1;
@@ -239,6 +244,8 @@ public class KernelFSHandler extends FuseStubFS {
             if (isSuccess(resp)) {
                 map.remove(oldPath);
                 map.put(newPath, resp);
+                CacheManager.evict(oldPath);
+                CacheManager.evict(newPath);
             } else {
                 s.close();
                 return -1;
@@ -266,6 +273,7 @@ public class KernelFSHandler extends FuseStubFS {
             if (isSuccess(resp)) {
                 map.remove(path);
                 map.put(path, resp);
+                CacheManager.evict(path);
             } else {
                 s.close();
                 return -1;
@@ -282,95 +290,39 @@ public class KernelFSHandler extends FuseStubFS {
      */
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        Object lock = pathLocks.computeIfAbsent(path, p -> new Object());
+        Object lock = READ_LOCKS[(path.hashCode() & 0x7fffffff) % READ_LOCKS.length];
 
         synchronized (lock) {
             try {
-                Long prevOffset = lastReadOffset.get(path);
-                long jumpThreshold = (long) (CacheManager.getCacheSize() * JUMP_THRESHOLD_MULTIPLIER);
-                boolean isBigJump = prevOffset != null && Math.abs(offset - prevOffset) > jumpThreshold;
-                lastReadOffset.put(path, offset);
-
                 CacheBlock cacheBlock = CacheManager.getCache(path);
 
-                if (isBigJump) {
-                    if (cacheBlock != null) {
-                        CacheManager.evict(path);
-                        cacheBlock = null;
-                    }
+                if (cacheBlock != null && cacheBlock.contains(offset, size)) {
+                    byte[] cachedData = cacheBlock.getData();
+                    int start = (int) (offset - cacheBlock.getCacheStartOffset());
+                    int length = (int) size;
+                    buf.put(0, cachedData, start, length);
+                    return length;
                 }
 
-                if (cacheBlock != null) {
-                    long cacheStart = cacheBlock.getCacheStartOffset();
-                    long cacheEnd = cacheStart + cacheBlock.getData().length;
-                    long requestEnd = offset + size;
-
-                    if (offset >= cacheStart && requestEnd <= cacheEnd) {
-                        int start = (int) (offset - cacheStart);
-                        int length = (int) size;
-                        buf.put(0, cacheBlock.getData(), start, length);
-                        return length;
+                byte[] data;
+                try (Socket s = new Socket(host, port)) {
+                    var i = s.getInputStream();
+                    long cacheBudget = CacheManager.getCacheSize();
+                    long extra = Math.max(0, cacheBudget - size);
+                    new PrintWriter(s.getOutputStream(), true).println(
+                            "read:" + path + ":" + offset + ":" + size + ":" + extra);
+                    int resp = Integer.parseInt(JNFSInputStream.readLine(i));
+                    if (resp < 0) {
+                        return -ErrorCodes.EIO();
                     }
-
-                    if (offset >= cacheStart && offset < cacheEnd && requestEnd > cacheEnd) {
-                        int cachedBytes = (int) (cacheEnd - offset);
-                        int missingBytes = (int) (requestEnd - cacheEnd);
-                        int cacheStartIndex = (int) (offset - cacheStart);
-
-                        buf.put(0, cacheBlock.getData(), cacheStartIndex, cachedBytes);
-
-                        String mapEntry = map.get(path);
-                        long targetFileSize = Long.parseLong(mapEntry.split(":")[1]);
-
-                        if (cacheEnd >= targetFileSize) {
-                            return cachedBytes;
-                        }
-
-                        byte[] missingData = getData(path, cacheEnd, missingBytes);
-                        int missingLen = Math.min(missingData.length, missingBytes);
-                        buf.put(cachedBytes, missingData, 0, missingLen);
-
-                        byte[] existing = cacheBlock.getData();
-                        byte[] merged = new byte[existing.length + missingLen];
-                        System.arraycopy(existing, 0, merged, 0, existing.length);
-                        System.arraycopy(missingData, 0, merged, existing.length, missingLen);
-                        CacheManager.allocate(path, cacheStart, new CacheBlock(merged, cacheStart));
-
-                        return cachedBytes + missingLen;
-                    }
-
-                    if (offset < cacheStart && requestEnd > cacheStart && requestEnd <= cacheEnd) {
-                        int missingBytes = (int) (cacheStart - offset);
-                        int cachedBytes = (int) (requestEnd - cacheStart);
-
-                        byte[] missingData = getData(path, offset, missingBytes);
-                        int missingLen = Math.min(missingData.length, missingBytes);
-                        buf.put(0, missingData, 0, missingLen);
-                        buf.put(missingLen, cacheBlock.getData(), 0, cachedBytes);
-
-                        byte[] existing = cacheBlock.getData();
-                        byte[] merged = new byte[missingLen + existing.length];
-                        System.arraycopy(missingData, 0, merged, 0, missingLen);
-                        System.arraycopy(existing, 0, merged, missingLen, existing.length);
-                        CacheManager.allocate(path, offset, new CacheBlock(merged, offset));
-
-                        return missingLen + cachedBytes;
-                    }
+                    data = new byte[resp];
+                    new DataInputStream(i).readFully(data);
                 }
-
-                Socket s = new Socket(host, port);
-                var i = s.getInputStream();
-
-                new PrintWriter(s.getOutputStream(), true).println(
-                        "read:" + path + ":" + offset + ":" + size + ":" + CacheManager.getCacheSize());
-                int resp = Integer.parseInt(JNFSInputStream.readLine(i));
-                byte[] data = new byte[resp];
-                new DataInputStream(i).readFully(data);
 
                 int copyLen = Math.min((int) size, data.length);
                 buf.put(0, data, 0, copyLen);
 
-                if (!isBigJump) {
+                if (CacheManager.getCacheSize() > 0 && size <= CacheManager.getCacheSize()) {
                     CacheBlock block = new CacheBlock(data, offset);
                     CacheManager.allocate(path, offset, block);
                 }
@@ -383,14 +335,14 @@ public class KernelFSHandler extends FuseStubFS {
     }
 
     public byte[] getData(String path, long offset, int cacheSize) throws IOException {
-        Socket s = new Socket(host, port);
-        var i = s.getInputStream();
-
-        new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":000:" + cacheSize);
-        int resp = Integer.parseInt(JNFSInputStream.readLine(i));
-        byte[] data = new byte[resp];
-        new DataInputStream(i).readFully(data);
-        return data;
+        try (Socket s = new Socket(host, port)) {
+            var i = s.getInputStream();
+            new PrintWriter(s.getOutputStream(), true).println("read:" + path + ":" + offset + ":000:" + cacheSize);
+            int resp = Integer.parseInt(JNFSInputStream.readLine(i));
+            byte[] data = new byte[resp];
+            new DataInputStream(i).readFully(data);
+            return data;
+        }
     }
 
     /**
@@ -399,12 +351,14 @@ public class KernelFSHandler extends FuseStubFS {
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         try {
-            Socket s = new Socket(host, port);
-            var i = s.getOutputStream();
-            byte[] dataToWrite = new byte[(int) size];
-            buf.get(0, dataToWrite, 0, (int) size);
-            new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
-            new DataOutputStream(i).write(dataToWrite);
+            try (Socket s = new Socket(host, port)) {
+                var i = s.getOutputStream();
+                byte[] dataToWrite = new byte[(int) size];
+                buf.get(0, dataToWrite, 0, (int) size);
+                new PrintWriter(s.getOutputStream(), true).println("write:" + path + ":" + offset + ":" + dataToWrite.length);
+                new DataOutputStream(i).write(dataToWrite);
+                CacheManager.evict(path);
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

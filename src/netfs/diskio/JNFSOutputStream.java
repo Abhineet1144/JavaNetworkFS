@@ -25,14 +25,25 @@ public class JNFSOutputStream extends BufferedOutputStream {
     }
 
     public void writeFileChunk(File file, long offset, int limit) throws IOException {
-        RandomAccessFile raf = new RandomAccessFile(file.getAbsoluteFile(), "r");
-        raf.seek(offset);
-        byte[] buffer = new byte[limit];
-        int read = raf.read(buffer, 0, limit);
-        System.out.println(read);
-        writeLine(this, read + "");
-        write(buffer, 0, read);
-        flush();
+        try (RandomAccessFile raf = new RandomAccessFile(file.getAbsoluteFile(), "r")) {
+            long available = Math.max(0, raf.length() - offset);
+            int total = (int) Math.min(Math.max(0, (long) limit), available);
+            raf.seek(offset);
+            writeLine(this, total + "");
+
+            // Keep server-side memory fixed even when the cache window is large.
+            byte[] buffer = new byte[Math.min(16 * 1024, Math.max(1, total))];
+            int remaining = total;
+            while (remaining > 0) {
+                int read = raf.read(buffer, 0, Math.min(buffer.length, remaining));
+                if (read < 0) {
+                    break;
+                }
+                write(buffer, 0, read);
+                remaining -= read;
+            }
+            flush();
+        }
     }
 
     public static void writeLine(OutputStream out, String line) throws IOException {
